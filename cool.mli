@@ -1,2 +1,2 @@
 type node  = [ 
-    `Int of int ]
+    `Int of string ]

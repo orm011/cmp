@@ -1,6 +1,7 @@
 {
 open Lexing
 open Core.Std
+open Cool_parse
 
 let next_line lexbuf =
   let pos = lexbuf.lex_curr_p in
@@ -45,25 +46,25 @@ rule parse_escaped_char null buf =
 |   'f'	  { Buffer.add_string buf "\012"; parse_string null buf lexbuf }
 |   '\n'  { next_line lexbuf; Buffer.add_string buf "\n"; parse_string null buf lexbuf }
 |   '\000' { parse_string true buf lexbuf }
-|   eof   { `ERROR("EOF in string constant") }
+|   eof   { ERROR("EOF in string constant") }
 |   _ as x { Buffer.add_char buf x; parse_string null buf lexbuf }
 and parse_string null buf = 
     parse
 |   '\\'		{ parse_escaped_char null buf lexbuf }
-|   '"'			{  if null then `ERROR("String contains escaped null character.") else 
+|   '"'			{  if null then ERROR("String contains escaped null character.") else 
 			     if Buffer.length buf >= max_str_length
-			     then `ERROR("String constant too long") 
-			     else `STR_CONST(Buffer.contents buf)
+			     then ERROR("String constant too long") 
+			     else STR_CONST(Buffer.contents buf)
 			}
-|   '\n'	 	{ next_line lexbuf;  `ERROR("Unterminated string constant");}
+|   '\n'	 	{ next_line lexbuf;  ERROR("Unterminated string constant");}
 |   '\000'	 	{ parse_string true buf lexbuf }
-|   eof 		{ `ERROR("EOF in string constant") }
+|   eof 		{ ERROR("EOF in string constant") }
 |   [^ '\\' '"' '\n' '\000' ]+  { Buffer.add_string buf (Lexing.lexeme lexbuf); parse_string null buf lexbuf }
 |   _		     	{ failwith "never expected to reach this. string." }
 and parse_single_line_comment =
      parse 
 |    '\n'	{ next_line lexbuf; read lexbuf  }
-|    eof 	{ `EOF }
+|    eof 	{ EOF }
 |    [^'\n']* 	{ parse_single_line_comment lexbuf }
 |    _ 		{ failwith " should not have reached here. single line
      comment." }
@@ -75,59 +76,59 @@ and parse_multi_line_comment c =
 |    '(' '*'		{ parse_multi_line_comment (c + 1) lexbuf }
 |    '\n'		{ next_line lexbuf; parse_multi_line_comment c lexbuf}
 |    [^ '(' '*' '\n']* 	{ parse_multi_line_comment c lexbuf }
-|    eof 		{ `ERROR("EOF in multi line comment") }
+|    eof 		{ ERROR("EOF in multi line comment") }
 |    _ 			{ failwith "should not have reached here. comment." }
 and read = 
      parse 
 |    white	{  read lexbuf }
-|    classRegex	{ `CLASS }
-|    falseRegex	{ `BOOL_CONST(bool_of_string (String.lowercase (Lexing.lexeme lexbuf))) }
-|    elseRegex 	{ `ELSE } 
-|    fi		{ `FI }
-|    ifRegex	{ `IF }
-|    inRegex	{ `IN }
-|    inherits	{ `INHERITS }
-|    isvoid	{ `ISVOID }
-|    letrule	{ `LET }
-|    loop	{ `LOOP }
-|    pool	{ `POOL }
-|    thenRegex	{ `THEN }
-|    whileRegex	{ `WHILE }
-|    case	{ `CASE }
-|    esac	{ `ESAC }
-|    newRegex	{ `NEW }
-|    ofRegex	{ `OF }
-|    notRegex	{ `NOT }
-|    trueRegex	{ `BOOL_CONST(bool_of_string (String.lowercase (Lexing.lexeme lexbuf))) }
-|    "<-" 	{ `ASSIGN }
-|    "@"  	{ `AT }
-|    "."  	{ `DOT }
-|    ","  	{ `COMMA }
-|    "("  	{ `LPAREN }
-|    ")"  	{ `RPAREN }
-|    "{"  	{ `LBRACE }
-|    "}"  	{ `RBRACE }
-|    ":"  	{ `COLON }
-|    ";"  	{ `SEMI }
-|    "=>"  	{ `DARROW } 
-|    "*"  	{ `MULT }
-|    "+"  	{ `PLUS }
-|    "-"  	{ `MINUS }
-|    "/"  	{ `DIV }
-|    "~"  	{ `NEG }
-|    "<"  	{ `LT }
-|    "<="  	{ `LE }
-|    "="  	{ `EQ }
+|    classRegex	{ CLASS }
+|    falseRegex	{ BOOL_CONST(bool_of_string (String.lowercase (Lexing.lexeme lexbuf))) }
+|    elseRegex 	{ ELSE } 
+|    fi		{ FI }
+|    ifRegex	{ IF }
+|    inRegex	{ IN }
+|    inherits	{ INHERITS }
+|    isvoid	{ ISVOID }
+|    letrule	{ LET }
+|    loop	{ LOOP }
+|    pool	{ POOL }
+|    thenRegex	{ THEN }
+|    whileRegex	{ WHILE }
+|    case	{ CASE }
+|    esac	{ ESAC }
+|    newRegex	{ NEW }
+|    ofRegex	{ OF }
+|    notRegex	{ NOT }
+|    trueRegex	{ BOOL_CONST(bool_of_string (String.lowercase (Lexing.lexeme lexbuf))) }
+|    "<-" 	{ ASSIGN }
+|    "@"  	{ AT }
+|    "."  	{ DOT }
+|    ","  	{ COMMA }
+|    "("  	{ LPAREN }
+|    ")"  	{ RPAREN }
+|    "{"  	{ LBRACE }
+|    "}"  	{ RBRACE }
+|    ":"  	{ COLON }
+|    ";"  	{ SEMI }
+|    "=>"  	{ DARROW } 
+|    "*"  	{ MULT }
+|    "+"  	{ PLUS }
+|    "-"  	{ MINUS }
+|    "/"  	{ DIV }
+|    "~"  	{ NEG }
+|    "<"  	{ LT }
+|    "<="  	{ LE }
+|    "="  	{ EQ }
 |    "--" 	{ parse_single_line_comment lexbuf }
 |    "(*" 	{ parse_multi_line_comment 1 lexbuf }
-|    "*)"       { `ERROR("Unmatched *)") }
-|    intconst 	{ `INT_CONST(Lexing.lexeme lexbuf) }
-|    objid 	{ `OBJECTID(Lexing.lexeme lexbuf) }
-|    typeid 	{ `TYPEID(Lexing.lexeme lexbuf) }
+|    "*)"       { ERROR("Unmatched *)") }
+|    intconst 	{ INT_CONST(Lexing.lexeme lexbuf) }
+|    objid 	{ OBJECTID(Lexing.lexeme lexbuf) }
+|    typeid 	{ TYPEID(Lexing.lexeme lexbuf) }
 |    '"' 	{ parse_string false (Buffer.create 16) lexbuf }
 |    '\n'	{ next_line lexbuf; read lexbuf }
-|    eof 	{ lexbuf.lex_eof_reached <- true; `EOF }
-|    _		{ `ERROR(Lexing.lexeme lexbuf) }
+|    eof 	{ lexbuf.lex_eof_reached <- true; EOF }
+|    _		{ ERROR(Lexing.lexeme lexbuf) }
 
 {
 
@@ -155,98 +156,54 @@ let print_escaped_string str =
     | c -> let intc = (int_of_char c) in if  intc >= 0x20 && intc <= 0x7f  then (Char.to_string c) else (Printf.sprintf "\\%03o" intc)
     in String.concat (List.map (String.to_list str)  ~f:escape);;
 
-(* convenience so that we don't print too much type info in utop *)
-type tok =  [ `ASSIGN
-     | `AT
-     | `BOOL_CONST of bool
-     | `CASE
-     | `CLASS
-     | `COLON
-     | `COMMA
-     | `DARROW
-     | `DIV
-     | `DOT
-     | `ELSE
-     | `EOF
-     | `EQ
-     | `ESAC
-     | `FI
-     | `IF
-     | `IN
-     | `INHERITS
-     | `INT_CONST of string
-     | `ISVOID
-     | `LBRACE
-     | `LE
-     | `LET
-     | `LOOP
-     | `LPAREN
-     | `LT
-     | `MINUS
-     | `MULT
-     | `NEG
-     | `NEW
-     | `NOT
-     | `OBJECTID of string
-     | `OF
-     | `PLUS
-     | `POOL
-     | `RBRACE
-     | `RPAREN
-     | `SEMI
-     | `STR_CONST of string
-     | `THEN
-     | `TYPEID of string
-     | `WHILE 
-     | `ERROR of string ];;
 
 let string_of_tok  = function 
-    | `ASSIGN -> "ASSIGN"
-    | `AT -> "'@'"
-     | `CASE -> "CASE"
-     | `CLASS -> "CLASS"
-     | `COLON -> "':'"
-     | `COMMA -> "','"
-     | `DARROW -> "DARROW"
-     | `DIV -> "'/'"
-     | `DOT -> "'.'"
-     | `ELSE -> "ELSE"
-     | `EOF -> "EOF"
-     | `EQ -> "'='"
-     | `ESAC -> "ESAC"
-     | `FI -> "FI"
-     | `IF -> "IF"
-     | `IN -> "IN"
-     | `INHERITS -> "INHERITS"
-     | `ISVOID -> "ISVOID"
-     | `LBRACE -> "'{'"
-     | `LE -> "LE"
-     | `LET -> "LET"
-     | `LOOP -> "LOOP"
-     | `LPAREN -> "'('"
-     | `LT -> "'<'"
-     | `MINUS -> "'-'"
-     | `MULT -> "'*'"
-     | `NEG -> "'~'"
-     | `NEW -> "NEW"
-     | `NOT -> "NOT"
-     | `OF -> "OF"
-     | `PLUS -> "'+'"
-     | `POOL -> "POOL"
-     | `RBRACE -> "'}'"
-     | `RPAREN -> "')'"
-     | `SEMI -> "';'"
-     | `THEN -> "THEN"
-     | `WHILE -> "WHILE"
-     | `BOOL_CONST(b) -> "BOOL_CONST " ^ string_of_bool(b)
-     | `INT_CONST(s) -> "INT_CONST " ^ s
-     | `OBJECTID(s)  -> "OBJECTID " ^ s
-     | `STR_CONST(s)  -> "STR_CONST \"" ^ (print_escaped_string s) ^ "\""
-     | `TYPEID(s) -> "TYPEID " ^  s
-     | `ERROR(s) -> "ERROR \"" ^ (print_escaped_string s) ^ "\""
+    | ASSIGN -> "ASSIGN"
+    | AT -> "'@'"
+     | CASE -> "CASE"
+     | CLASS -> "CLASS"
+     | COLON -> "':'"
+     | COMMA -> "','"
+     | DARROW -> "DARROW"
+     | DIV -> "'/'"
+     | DOT -> "'.'"
+     | ELSE -> "ELSE"
+     | EOF -> "EOF"
+     | EQ -> "'='"
+     | ESAC -> "ESAC"
+     | FI -> "FI"
+     | IF -> "IF"
+     | IN -> "IN"
+     | INHERITS -> "INHERITS"
+     | ISVOID -> "ISVOID"
+     | LBRACE -> "'{'"
+     | LE -> "LE"
+     | LET -> "LET"
+     | LOOP -> "LOOP"
+     | LPAREN -> "'('"
+     | LT -> "'<'"
+     | MINUS -> "'-'"
+     | MULT -> "'*'"
+     | NEG -> "'~'"
+     | NEW -> "NEW"
+     | NOT -> "NOT"
+     | OF -> "OF"
+     | PLUS -> "'+'"
+     | POOL -> "POOL"
+     | RBRACE -> "'}'"
+     | RPAREN -> "')'"
+     | SEMI -> "';'"
+     | THEN -> "THEN"
+     | WHILE -> "WHILE"
+     | BOOL_CONST(b) -> "BOOL_CONST " ^ string_of_bool(b)
+     | INT_CONST(s) -> "INT_CONST " ^ s
+     | OBJECTID(s)  -> "OBJECTID " ^ s
+     | STR_CONST(s)  -> "STR_CONST \"" ^ (print_escaped_string s) ^ "\""
+     | TYPEID(s) -> "TYPEID " ^  s
+     | ERROR(s) -> "ERROR \"" ^ (print_escaped_string s) ^ "\""
 
 (* convenience method to shorten return type *)
-let read_token lexbuf : tok = read lexbuf;;
+let read_token lexbuf : token = read lexbuf;;
 
 (*
 * tokenizes from the inchannel, prints tokens line by line into outchannel.
@@ -256,7 +213,7 @@ let tokenize_from_to inch outch   =
     (while not lexbuf.lex_eof_reached do
        let tok = read lexbuf in
        let line = lexbuf.lex_curr_p.pos_lnum in
-       if (tok <> `EOF) then Printf.fprintf outch "#%d %s\n" line (string_of_tok tok)
+       if (tok <> EOF) then Printf.fprintf outch "#%d %s\n" line (string_of_tok tok)
        done);;
 
 (*
@@ -270,14 +227,15 @@ let tokenize_file infile  =
     Printf.fprintf outch "#name \"%s\"\n" infile; 
     tokenize_from_to inch outch;;
 
-(* let () = if (Array.length Sys.argv)  = 2 then 
-(tokenize_file Sys.argv.(1)) else (tokenize_from_to stdin stdout);;*)
-let () = 
-     for i = 1 to (Array.length Sys.argv - 1) do
-     let infile = Sys.argv.(i) in 
-     let inch = In_channel.create infile in
-     Printf.fprintf stdout "#name \"%s\"\n" infile; 
-     tokenize_from_to inch stdout;
-     In_channel.close inch
-     done
+(* (\* let () = if (Array.length Sys.argv)  = 2 then  *)
+(* (tokenize_file Sys.argv.(1)) else (tokenize_from_to stdin stdout);;*\) *)
+(* let () =  *)
+(*      for i = 1 to (Array.length Sys.argv - 1) do *)
+(*      let infile = Sys.argv.(i) in  *)
+(*      let inch = In_channel.create infile in *)
+(*      Printf.fprintf stdout "#name \"%s\"\n" infile;  *)
+(*      tokenize_from_to inch stdout; *)
+(*      In_channel.close inch *)
+(*      done *)
+
 }

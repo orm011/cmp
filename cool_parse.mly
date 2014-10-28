@@ -46,6 +46,27 @@
 
 %%
 
+(* todo: parses list, returns list  *)
+classfield:
+  | fieldname = OBJECTID; COLON; fieldtype = TYPEID; 
+	     { Cool.VarField { fieldname; fieldtype }}
+;
+
 program:
-  | v = INT_CONST { `Int(v) }
+  | cl = classes { Cool.Prog(cl) }
+;
+
+fields:
+  | { [] }
+  | fl = classfield; SEMI; rest = fields { fl :: rest }
+  (* | obj = separated_list(SEMI, classfield) { obj } *)
+;
+
+classes:
+  | EOF  { [] }
+  | CLASS classname = TYPEID inh = option(preceded(INHERITS, TYPEID)) LBRACE features = fields RBRACE SEMI rest
+    = classes { Cool.Class { classname;
+			     inherits= (match inh with None -> "Object" | Some (x)  -> x );
+			     filename = "filename_todo.cool";
+			     features } :: rest }
 ;

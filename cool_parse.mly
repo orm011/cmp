@@ -48,17 +48,12 @@
 
 (* need at least one class. *)
 program:
-  | cls = classr; rest = classlist { (Cool.Prog(cls::rest), $endpos)}
+  | classes = classrule+; EOF { (Cool.Prog(classes), $endpos) }
 ;
 
-classlist:
-  | EOF { [] }
-  | cls = classr; rest = classlist { cls::rest }
-;
-
-classr:
+classrule:
   | CLASS classname = TYPEID inh
-    = option(preceded(INHERITS, TYPEID)) LBRACE features
+    = preceded(INHERITS, TYPEID)? LBRACE features
     = fields RBRACE SEMI
 	     { let inherits = (match inh with None -> "Object" | Some (x)  -> x ) in 
 	       (Cool.Class { classname; inherits; features }, $endpos

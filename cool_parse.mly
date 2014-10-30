@@ -42,18 +42,18 @@
 %token <string> TYPEID 
 %token <string> ERROR 
 
-%start <Cool.node> program
+%start <Cool.posnode> program
 
 %%
 
 (* todo: parses list, returns list  *)
 classfield:
   | fieldname = OBJECTID; COLON; fieldtype = TYPEID; 
-	     { Cool.VarField { fieldname; fieldtype }}
+	     { (Cool.VarField { fieldname; fieldtype }, $endpos)}
 ;
 
 program:
-  | cl = classes { Cool.Prog(cl) }
+  | cl = classes { (Cool.Prog(cl), $endpos) }
 ;
 
 fields:
@@ -65,8 +65,7 @@ fields:
 classes:
   | EOF  { [] }
   | CLASS classname = TYPEID inh = option(preceded(INHERITS, TYPEID)) LBRACE features = fields RBRACE SEMI rest
-    = classes { Cool.Class { classname;
+    = classes { (Cool.Class { classname;
 			     inherits= (match inh with None -> "Object" | Some (x)  -> x );
-			     filename = "filename_todo.cool";
-			     features } :: rest }
+			     features }, $endpos) :: rest }
 ;

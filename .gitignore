@@ -1,0 +1,11 @@
+*.class
+*.java
+.classpath
+*.byte
+*~
+*\#
+.project
+_build
+bin
+..
+cool

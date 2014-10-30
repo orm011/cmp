@@ -54,20 +54,17 @@ program:
 classrule:
   | CLASS classname = TYPEID inh
     = preceded(INHERITS, TYPEID)? LBRACE features
-    = fields RBRACE SEMI
+    = features RBRACE SEMI
 	     { let inherits = (match inh with None -> "Object" | Some (x)  -> x ) in 
-	       (Cool.Class { classname; inherits; features }, $endpos
-	     ) }
+	       (Cool.Class { classname; inherits; features }, $endpos) }
 ;
 
-fields:
-  | { [] }
-  | fl = classfield; SEMI; rest = fields { fl :: rest }
-  (* | obj = separated_list(SEMI, classfield) { obj } *)
+features:
+  | feats = classfield* { feats }
 ;
 
 (* todo: parses list, returns list  *)
 classfield:
-  | fieldname = OBJECTID; COLON; fieldtype = TYPEID; 
+  | fieldname = OBJECTID; COLON; fieldtype = TYPEID; SEMI;
 	     { (Cool.VarField { fieldname; fieldtype }, $endpos)}
 ;

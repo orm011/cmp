@@ -46,14 +46,23 @@
 
 %%
 
-(* todo: parses list, returns list  *)
-classfield:
-  | fieldname = OBJECTID; COLON; fieldtype = TYPEID; 
-	     { (Cool.VarField { fieldname; fieldtype }, $endpos)}
+(* need at least one class. *)
+program:
+  | cls = classr; rest = classlist { (Cool.Prog(cls::rest), $endpos)}
 ;
 
-program:
-  | cl = classes { (Cool.Prog(cl), $endpos) }
+classlist:
+  | EOF { [] }
+  | cls = classr; rest = classlist { cls::rest }
+;
+
+classr:
+  | CLASS classname = TYPEID inh
+    = option(preceded(INHERITS, TYPEID)) LBRACE features
+    = fields RBRACE SEMI
+	     { let inherits = (match inh with None -> "Object" | Some (x)  -> x ) in 
+	       (Cool.Class { classname; inherits; features }, $endpos
+	     ) }
 ;
 
 fields:
@@ -62,10 +71,8 @@ fields:
   (* | obj = separated_list(SEMI, classfield) { obj } *)
 ;
 
-classes:
-  | EOF  { [] }
-  | CLASS classname = TYPEID inh = option(preceded(INHERITS, TYPEID)) LBRACE features = fields RBRACE SEMI rest
-    = classes { (Cool.Class { classname;
-			     inherits= (match inh with None -> "Object" | Some (x)  -> x );
-			     features }, $endpos) :: rest }
+(* todo: parses list, returns list  *)
+classfield:
+  | fieldname = OBJECTID; COLON; fieldtype = TYPEID; 
+	     { (Cool.VarField { fieldname; fieldtype }, $endpos)}
 ;

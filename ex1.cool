@@ -1,0 +1,4 @@
+class Foo inherits Bar {
+     a : Int;
+     b : Bool;
+};

@@ -41,9 +41,9 @@
 %token <string> STR_CONST 
 %token <string> TYPEID 
 %token <string> ERROR 
+%start <Cool.posexpr list> exprtop
 
-%start <Cool.posnode> program
-
+(* %start <Cool.posnode> program *)
 %%
 
 (* need at least one class. *)
@@ -67,4 +67,133 @@ features:
 classfield:
   | fieldname = OBJECTID; COLON; fieldtype = TYPEID; SEMI;
 	     { (Cool.VarField { fieldname; fieldtype }, $endpos)}
+;
+
+
+(* using this temporary to test just the expressions component  *)
+exprtop:
+  | e = posexpr*; EOF {e}
+
+posexpr:
+  | e = expr { (e, $endpos) }
+;
+expr:
+  | e = assignexpr { e }
+;
+
+(*
+. level 0
+@ level 1
+~ level 2
+isvoid level 3
+* / level 4
++ - level 5
+<= < = level 6
+not level 7
+<- level 8
+
+All binary operations are left-associative, with the exception of
+assignment, which is right-associative,
+and the three comparison operations, which do not associate.
+ *)
+
+idpos:
+  | id = idexpr { (id, $endpos) }
+idexpr:
+  | name = OBJECTID { Cool.Id {name; typ=None} }
+
+assignpos:
+  | e = assignexpr { (e, $endpos) }
+(* ID <- expr *) (* right associative *)
+assignexpr:
+  | id = idpos; ASSIGN; e2 = assignpos { Cool.Assign(id, e2) }
+  | e = complementexpr {e }
+
+complementpos:
+  | e = complementexpr { (e, $endpos ) }
+;
+complementexpr:
+  | NOT; e = complementpos { Cool.Comp(e) }
+  | e = compareexpr { e }
+;
+
+comparepos:
+  | e = compareexpr { (e, $endpos) }
+;
+
+(* the three comparison operations do not associate, so you cannot *)
+(* have a list of them*)
+compareexpr:
+  | e1 = sumpos; LE; e2 = sumpos  { Lequal(e1, e2) }
+  | e1 = sumpos; LT; e2 = sumpos  { Less(e1, e2) }
+  | e1 = sumpos; EQ; e2 = sumpos  { Equal(e1, e2) }
+  | e = sumexpr { e }
+;
+
+sumpos:
+  | e = sumexpr { (e, $endpos) }
+;
+
+sumexpr:
+  | e1 = sumpos ; PLUS; e2 = prodpos { Cool.Plus(e1, e2) }
+  | e1 = sumpos ; MINUS; e2 = prodpos { Cool.Minus(e1, e2) }
+  | e = prodexpr { e }
+;
+
+prodpos:
+  | e = prodexpr { (e, $endpos) }
+;
+
+prodexpr:
+  | e1 = prodpos; MULT; e2 = isvoidpos { Cool.Mult(e1, e2) }
+  | e1 = prodpos; DIV; e2 = isvoidpos { Cool.Div(e1, e2) }
+  | e = isvoidexpr { e }
+;
+
+isvoidpos:
+  | e = isvoidexpr { (e, $endpos) }
+;
+isvoidexpr:
+  | ISVOID; e = isvoidpos { Cool.IsVoid(e) }
+  | e = negexpr { e }
+;
+
+negpos:
+  | e = negexpr { (e, $endpos) }
+;
+
+negexpr:
+  | NEG; e = negpos { Cool.Neg(e) } (* this makes neg right associative *)
+			       (* that's more useful, but contradicts *)
+			       (* what the assignment seems to say. *)
+  | e = atexpr { e }
+;
+
+atpos:
+  | e = atexpr { (e, $endpos) }
+;
+atexpr:
+  | e1 = atpos; AT; e2 = dotpos { Cool.Sispatch(e1, e2) }
+  | e = dotexpr { e }
+;
+
+dotpos:
+  | e = dotexpr { (e, $endpos) }
+;
+
+(* expr[@TYPE].ID( [ expr [[, expr]] ∗ ] ) *) 
+dotexpr:
+  | e1 = dotpos; DOT; e2 = basicpos { Cool.Dispatch(e1, e2) }
+  | e = basicexpr { e }
+;
+
+basicpos:
+  | e = basicexpr { (e, $endpos) }
+;
+basicexpr:
+  | LPAREN; e = expr; RPAREN { e }
+  | id = idexpr { id }
+  | int = INT_CONST { Cool.Int(int) } 
+  | str = STR_CONST { Cool.Str(str) } 
+  | b = BOOL_CONST { Cool.Bool(b) } 
 ;

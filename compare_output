@@ -1,0 +1,5 @@
+#! /bin/bash
+
+./cool_main.byte $1 > $1.mine
+./refparse $1 > $1.official
+diff <(grep -v '\#.*' $1.mine) <(grep -v '\#.*' $1.official)

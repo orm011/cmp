@@ -1,4 +1,5 @@
 #! /bin/bash
+[ $1 -a -f $1 ]  || echo "filename \"$1\" not found" && exit
 
 ./cool_main.byte $1 > $1.mine
 ./refparse $1 > $1.official

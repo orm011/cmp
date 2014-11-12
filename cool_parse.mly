@@ -41,9 +41,8 @@
 %token <string> STR_CONST 
 %token <string> TYPEID 
 %token <string> ERROR 
-%start <Cool.posexpr list> exprtop
-
-(* %start <Cool.posnode> program *)
+(*%start <Cool.posexpr list> exprtop*)
+%start <Cool.posnode> program
 %%
 
 (* need at least one class. *)
@@ -54,21 +53,27 @@ program:
 classrule:
   | CLASS classname = TYPEID inh
     = preceded(INHERITS, TYPEID)? LBRACE features
-    = features RBRACE SEMI
+    = classfield* RBRACE SEMI
 	     { let inherits = (match inh with None -> "Object" | Some (x)  -> x ) in 
 	       (Cool.Class { classname; inherits; features }, $endpos) }
 ;
 
-features:
-  | feats = classfield* { feats }
-;
-
 (* todo: parses list, returns list  *)
 classfield:
-  | fieldname = OBJECTID; COLON; fieldtype = TYPEID; SEMI;
-	     { (Cool.VarField { fieldname; fieldtype }, $endpos)}
+  | fieldname = OBJECTID; COLON; fieldtype = TYPEID;
+    init = preceded(ASSIGN, posexpr)?; SEMI;
+	     { (Cool.VarField { fieldname; fieldtype; init }, $endpos)}
+  | methodname  = OBJECTID; LPAREN; formalparams = separated_list(COMMA, formal);
+    RPAREN COLON returnType = TYPEID LBRACE defn
+		       = posexpr RBRACE; SEMI;  { (Cool.Method { methodname; 
+							 formalparams;
+							 returnType;
+							 defn }, $endpos) }
 ;
 
+formal:
+  | id = OBJECTID COLON typ = TYPEID { (Cool.Formal(id, typ), $endpos) }
+;
 
 (* using this temporary to test just the expressions component  *)
 exprtop:
@@ -166,24 +171,21 @@ negexpr:
   | NEG; e = negpos { Cool.Neg(e) } (* this makes neg right associative *)
 			       (* that's more useful, but contradicts *)
 			       (* what the assignment seems to say. *)
-  | e = atexpr { e }
-;
-
-atpos:
-  | e = atexpr { (e, $endpos) }
-;
-atexpr:
-  | e1 = atpos; AT; e2 = dotpos { Cool.Sispatch(e1, e2) }
-  | e = dotexpr { e }
-;
-
-dotpos:
-  | e = dotexpr { (e, $endpos) }
+  | e = dispatchexpr { e }
 ;
 
 (* expr[@TYPE].ID( [ expr [[, expr]] ∗ ] ) *) 
-dotexpr:
-  | e1 = dotpos; DOT; e2 = basicpos { Cool.Dispatch(e1, e2) }
+(* should be left associative *)
+dispatchpos:
+  | e = dispatchexpr { (e, $endpos) }
+;
+
+dispatchexpr:
+  | obj = dispatchpos; dispatchType = option(preceded(AT, TYPEID)); DOT;
+    ide = idexpr; LPAREN; args = separated_list(COMMA, posexpr);
+    RPAREN  { Dispatch { obj; dispatchType;
+			 id=(match ide with Cool.Id(r) -> r.name |
+					    _ -> failwith "only id"); args } }
   | e = basicexpr { e }
 ;
 

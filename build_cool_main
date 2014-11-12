@@ -1,1 +1,2 @@
-corebuild -use-menhir cool_main.byte
+[[ $1 == trace ]] && F="-yaccflag --trace"
+corebuild -use-menhir $F  cool_main.byte

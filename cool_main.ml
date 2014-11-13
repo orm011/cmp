@@ -29,7 +29,7 @@ and lines_of_posexpr posexpr = match posexpr with
 		   (lines_of_expr expr) @ [": _no_type"]
 and cat_expr a b = (lines_of_posexpr a) @ (lines_of_posexpr b)
 and lines_of_expr (expr : Cool.expr) = match expr with 
-  | Assign(a,b) -> ["_assign"] @ padded (cat_expr a b)
+  | Assign(a,b) -> ["_assign"] @ padded ( [a.name]  @ (lines_of_posexpr b))
   | Comp(a) -> ["_comp" ] @ padded (lines_of_posexpr a)
   | Lequal(a,b) -> [ "_lte" ] @ padded (cat_expr a b)
   | Equal(a,b) -> [ "_eq" ] @ padded (cat_expr a b)

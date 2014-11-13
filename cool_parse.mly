@@ -105,13 +105,15 @@ and the three comparison operations, which do not associate.
 idpos:
   | id = idexpr { (id, $endpos) }
 idexpr:
-  | name = OBJECTID { Cool.Id {name; typ=None} }
+  | name = id { Cool.Id name }
+id:
+  | name = OBJECTID { { name; typ=None }}
 
 assignpos:
   | e = assignexpr { (e, $endpos) }
 (* ID <- expr *) (* right associative *)
 assignexpr:
-  | id = idpos; ASSIGN; e2 = assignpos { Cool.Assign(id, e2) }
+  | id = id; ASSIGN; e2 = assignpos { Cool.Assign(id, e2) }
   | e = complementexpr {e }
 
 complementpos:

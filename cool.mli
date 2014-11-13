@@ -1,7 +1,7 @@
 open Core.Std;;
 
 type expr = 
-  | Assign of posexpr * posexpr
+  | Assign of idrec * posexpr
   | Comp of posexpr
   | Lequal of posexpr * posexpr
   | Less of posexpr * posexpr

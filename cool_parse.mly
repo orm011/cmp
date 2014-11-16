@@ -117,7 +117,7 @@ assignpos:
   | e = assignexpr { (e, $endpos) }
 (* ID <- expr *) (* right associative *)
 assignexpr:
-  | id = id; ASSIGN; e2 = assignpos { Cool.Assign(id, e2) }
+  | id = id; ASSIGN; e2 = posexpr { Cool.Assign(id, e2) }
   | e = complementexpr {e }
 
 complementpos:

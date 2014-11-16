@@ -106,13 +106,6 @@ All binary operations are left-associative, with the exception of
 assignment, which is right-associative,
 and the three comparison operations, which do not associate.
  *)
-idpos:
-  | id = idexpr { (id, $endpos) }
-idexpr:
-  | name = id { Cool.Id name }
-id:
-  | name = OBJECTID { { name; typ=None }}
-
 assignpos:
   | e = assignexpr { (e, $endpos) }
 (* ID <- expr *) (* right associative *)
@@ -197,11 +190,15 @@ dispatchexpr:
 
 basicpos:
   | e = basicexpr { (e, $endpos) }
-;
 basicexpr:
   | LPAREN; e = expr; RPAREN { e }
   | id = idexpr { id }
   | int = INT_CONST { Cool.Int(int) } 
   | str = STR_CONST { Cool.Str(str) } 
   | b = BOOL_CONST { Cool.Bool(b) } 
-;
+idpos:
+  | id = idexpr { (id, $endpos) }
+idexpr:
+  | name = id { Cool.Id name }
+id:
+  | name = OBJECTID { { name; typ=None }}

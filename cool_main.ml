@@ -13,11 +13,7 @@ and lines_of_node posnode = match posnode with
   | (Class ({classname;inherits;features}), pos) ->
      ["_class"; pad classname; pad inherits; pad "\"" ^ pos.Lexing.pos_fname ^ "\""] @
        padded (["("] @ (List.concat (List.map ~f:lines_of_posnode  features)) @ [")"])
-  | (VarField ({fieldname; fieldtype; init}), _) ->
-     ["_attr"; pad fieldname; pad fieldtype] @ 
-       padded (match init with
-	       | None -> ["_no_expr"; ": _no_type"] 
-	       | Some(x) -> lines_of_posexpr x )
+  | (VarField (fieldrec), _) -> ["_attr";] @ padded (fieldprint fieldrec)
   | (Formal (a,b),_) -> ["_formal"] @ (padded  [a; b])
   | (Method { methodname; formalparams; returnType; defn }, _) ->
      ["_method"] @ padded ([ methodname; ] @ 
@@ -28,7 +24,15 @@ and lines_of_posexpr posexpr = match posexpr with
   | (expr, p) -> ["#" ^ string_of_int p.Lexing.pos_lnum] @
 		   (lines_of_expr expr) @ [": _no_type"]
 and cat_expr a b = (lines_of_posexpr a) @ (lines_of_posexpr b)
+
+and fieldprint {fieldname; fieldtype; init} = 
+  [fieldname; fieldtype]  @  (match init with
+				     | None -> ["_no_expr"; ": _no_type"] 
+				     | Some(x) -> lines_of_posexpr x )
+
 and lines_of_expr (expr : Cool.expr) = match expr with 
+  | Let {decls; expr} -> ["_let"]  @ padded ((List.concat (List.map decls ~f:fieldprint)) @ 
+(lines_of_posexpr expr))
   | Assign(a,b) -> ["_assign"] @ padded ( [a.name]  @ (lines_of_posexpr b))
   | Comp(a) -> ["_comp" ] @ padded (lines_of_posexpr a)
   | Lequal(a,b) -> [ "_lte" ] @ padded (cat_expr a b)

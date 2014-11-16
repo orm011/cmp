@@ -1,6 +1,7 @@
 open Core.Std;;
 
 type expr = 
+  | Let of letrec
   | Assign of idrec * posexpr
   | Comp of posexpr
   | Lequal of posexpr * posexpr
@@ -17,12 +18,11 @@ type expr =
   | Int of string
   | Str of string 
   | Bool of bool 
+and letrec = { decls: field list; expr: posexpr }
 and dispatchrec = {obj:posexpr; dispatchType:string option; id:string; args:posexpr list}
 and posexpr = expr * Lexing.position
-and idrec = {name:string; typ:string option};;
-
-
-type node = 
+and idrec = {name:string; typ:string option}
+and node = 
 | Prog of posnode list
 | VarField of field
 | Class of classrec

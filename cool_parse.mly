@@ -60,9 +60,7 @@ classrule:
 
 (* todo: parses list, returns list  *)
 classfield:
-  | fieldname = OBJECTID; COLON; fieldtype = TYPEID;
-    init = preceded(ASSIGN, posexpr)?; SEMI;
-	     { (Cool.VarField { fieldname; fieldtype; init }, $endpos)}
+  | field = vardec SEMI { (Cool.VarField field, $endpos) }
   | methodname  = OBJECTID; LPAREN; formalparams = separated_list(COMMA, formal);
     RPAREN COLON returnType = TYPEID LBRACE defn
 		       = posexpr RBRACE; SEMI;  { (Cool.Method { methodname; 
@@ -71,19 +69,26 @@ classfield:
 							 defn }, $endpos) }
 ;
 
+vardec:
+  | fieldname = OBJECTID; COLON; fieldtype = TYPEID; 
+    init = preceded(ASSIGN, posexpr)?; { { Cool.fieldname; Cool.fieldtype;
+						Cool.init } }
+
 formal:
   | id = OBJECTID COLON typ = TYPEID { (Cool.Formal(id, typ), $endpos) }
 ;
 
-(* using this temporary to test just the expressions component  *)
+(* using this temporarily to test just the expressions component  *)
 exprtop:
   | e = posexpr*; EOF {e}
-
+;
 posexpr:
   | e = expr { (e, $endpos) }
 ;
 expr:
   | e = assignexpr { e }
+  | LET; decls = separated_nonempty_list(COMMA, vardec); IN expr = posexpr
+    ; { Cool.Let {decls; expr} }
 ;
 
 (*
@@ -101,7 +106,6 @@ All binary operations are left-associative, with the exception of
 assignment, which is right-associative,
 and the three comparison operations, which do not associate.
  *)
-
 idpos:
   | id = idexpr { (id, $endpos) }
 idexpr:

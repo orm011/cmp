@@ -39,7 +39,7 @@ and lines_of_expr (expr : Cool.expr) = match expr with
   | Lequal(a,b) -> [ "_lte" ] @ padded (cat_expr a b)
   | Equal(a,b) -> [ "_eq" ] @ padded (cat_expr a b)
   | Less(a,b) -> [ "_lt" ] @ padded (cat_expr a b)
-  | Div(a,b) -> [ "_div" ] @ padded (cat_expr a b)
+  | Div(a,b) -> [ "_divide" ] @ padded (cat_expr a b)
   | Mult(a,b) -> [ "_mul" ] @ padded (cat_expr a b)
   | Minus(a,b) -> [ "_sub" ] @ padded (cat_expr a b)
   | Plus(a,b) -> [ "_plus" ] @ padded (cat_expr a b)

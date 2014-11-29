@@ -20,6 +20,7 @@ type expr =
   | Bool of bool 
   | Block of posexpr list
   | If of ifrec
+  | New of string
 and ifrec = { pred:posexpr; thenexp:posexpr; elseexp:posexpr }
 and letrec = { decls: field list; expr: posexpr }
 and dispatchrec = {obj:posexpr; dispatchType:string option; id:string; args:posexpr list}

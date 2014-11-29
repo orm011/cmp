@@ -22,6 +22,9 @@ type expr =
   | If of ifrec
   | New of string
   | Loop of looprec
+  | Case of caserec
+and caserec = { test:posexpr; branches:branch list}
+and branch  = { branchname:string; branchtype:string;  branche:posexpr }
 and looprec =  { cond:posexpr; body:posexpr }
 and ifrec = { pred:posexpr; thenexp:posexpr; elseexp:posexpr }
 and letrec = { decls: field list; expr: posexpr }

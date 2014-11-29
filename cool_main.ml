@@ -29,7 +29,8 @@ and fieldprint {fieldname; fieldtype; init} =
   [fieldname; fieldtype]  @  (match init with
 				     | None -> ["_no_expr"; ": _no_type"] 
 				     | Some(x) -> lines_of_posexpr x )
-
+and lines_of_branch {branchname; branchtype;  branche}
+  = ["_branch"] @ padded([branchname; branchtype] @ (lines_of_posexpr branche))
 and lines_of_expr (expr : Cool.expr) = match expr with 
   | Let {decls; expr} -> ["_let"]  @ padded ((List.concat (List.map decls ~f:fieldprint)) @ 
 (lines_of_posexpr expr))
@@ -37,6 +38,7 @@ and lines_of_expr (expr : Cool.expr) = match expr with
   | If {pred; thenexp; elseexp} -> ["_cond"] @ padded (List.concat (List.map [pred; thenexp; elseexp] ~f:lines_of_posexpr))
   | New a -> ["_new"] @ padded [a]
   | Loop { cond; body } -> ["_loop" ] @ padded ((lines_of_posexpr cond) @ (lines_of_posexpr body))
+  | Case { test; branches} -> ["_typcase"] @ padded ((lines_of_posexpr test) @ (List.concat  (List.map  branches  ~f:lines_of_branch) ))
   | Assign(a,b) -> ["_assign"] @ padded ( [a.name]  @ (lines_of_posexpr b))
   | Comp(a) -> ["_comp" ] @ padded (lines_of_posexpr a)
   | Lequal(a,b) -> [ "_lte" ] @ padded (cat_expr a b)

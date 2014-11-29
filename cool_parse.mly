@@ -98,7 +98,11 @@ expr:
   | IF pred=posexpr THEN thenexp=posexpr ELSE elseexp
     = posexpr FI { Cool.If { pred; thenexp; elseexp } }
   | NEW s = TYPEID { Cool.New(s) }
-  | WHILE cond=posexpr LOOP body=posexpr POOL { Cool.Loop { cond; body }}
+  | WHILE cond=posexpr LOOP body
+    =posexpr POOL { Cool.Loop { cond; body }}
+  | CASE test=posexpr OF branches
+    =nonempty_list(terminated(branch, SEMI))
+		  ESAC { Case {test; branches }} 
   | id = id; ASSIGN; e2 = posexpr %prec ASSIGN { Cool.Assign(id, e2) } 
   | NOT; e = posexpr %prec NOT { Cool.Comp(e) } 
   | e1 = posexpr; LE; e2 = posexpr %prec LE { Lequal(e1, e2) } 
@@ -121,6 +125,8 @@ expr:
 
 id:
   | name = OBJECTID { { Cool.name; Cool.typ=None }}
-
+branch:
+  | branchname=OBJECTID COLON branchtype=TYPEID DARROW branche
+    =posexpr { { branchname; branchtype; branche } }
 (* expr[@TYPE].ID( [ expr [[, expr]] ∗ ] ) *) 
 (* should be left associative *)

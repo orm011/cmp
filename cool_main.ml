@@ -49,7 +49,7 @@ and lines_of_expr (expr : Cool.expr) = match expr with
   | Id(i) -> [ "_object"; ] @ padded [i.name]
   | Int(str) ->  [ "_int"] @ padded [str]
   | Str(str) -> [ "_string" ] @ padded ["\"" ^ str ^ "\""]
-  | Bool(b) -> [ "_bool" ] @ padded [string_of_bool b]
+  | Bool(b) -> [ "_bool" ] @ padded [if b then "1" else "0" ]
 and lines_of_dispatch {obj; dispatchType; id; args } = match dispatchType with
   | None -> ["_dispatch"]  @ padded  ( ( lines_of_posexpr obj ) @ [ id; "("  ] @ 
 		(List.concat ( List.map args ~f:lines_of_posexpr )) @ [ ")" ] )

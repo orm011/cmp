@@ -92,6 +92,7 @@ posexpr:
   | e = expr { (e, $endpos) }
 ;
 expr:
+  | LBRACE sub=nonempty_list(terminated(posexpr, SEMI)) RBRACE { Block (sub) }
   | LET; decls = separated_nonempty_list(COMMA, vardec);
     IN expr = posexpr { Cool.Let {decls; expr} }
   | id = id; ASSIGN; e2 = posexpr %prec ASSIGN { Cool.Assign(id, e2) } 

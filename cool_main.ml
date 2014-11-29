@@ -34,6 +34,7 @@ and lines_of_expr (expr : Cool.expr) = match expr with
   | Let {decls; expr} -> ["_let"]  @ padded ((List.concat (List.map decls ~f:fieldprint)) @ 
 (lines_of_posexpr expr))
   | Block a -> ["_block"] @ padded (List.concat (List.map a ~f:lines_of_posexpr))
+  | If {pred; thenexp; elseexp} -> ["_cond"] @ padded (List.concat (List.map [pred; thenexp; elseexp] ~f:lines_of_posexpr))
   | Assign(a,b) -> ["_assign"] @ padded ( [a.name]  @ (lines_of_posexpr b))
   | Comp(a) -> ["_comp" ] @ padded (lines_of_posexpr a)
   | Lequal(a,b) -> [ "_lte" ] @ padded (cat_expr a b)

@@ -95,6 +95,8 @@ expr:
   | LBRACE sub=nonempty_list(terminated(posexpr, SEMI)) RBRACE { Block (sub) }
   | LET; decls = separated_nonempty_list(COMMA, vardec);
     IN expr = posexpr { Cool.Let {decls; expr} }
+  | IF pred=posexpr THEN thenexp=posexpr ELSE elseexp
+    = posexpr FI { Cool.If { pred; thenexp; elseexp } }
   | id = id; ASSIGN; e2 = posexpr %prec ASSIGN { Cool.Assign(id, e2) } 
   | NOT; e = posexpr %prec NOT { Cool.Comp(e) } 
   | e1 = posexpr; LE; e2 = posexpr %prec LE { Lequal(e1, e2) } 

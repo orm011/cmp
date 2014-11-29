@@ -41,6 +41,16 @@
 %token <string> STR_CONST 
 %token <string> TYPEID 
 %token <string> ERROR 
+
+%right ASSIGN		  
+%nonassoc LE LT EQ
+%left PLUS MINUS
+%left MULT DIV
+%left ISVOID
+%left NEG
+%left AT
+%left DOT 
+
 (*%start <Cool.posexpr list> exprtop*)
 %start <Cool.posnode> program
 %%
@@ -78,127 +88,34 @@ formal:
   | id = OBJECTID COLON typ = TYPEID { (Cool.Formal(id, typ), $endpos) }
 ;
 
-(* using this temporarily to test just the expressions component  *)
-exprtop:
-  | e = posexpr*; EOF {e}
-;
 posexpr:
   | e = expr { (e, $endpos) }
 ;
 expr:
-  | e = assignexpr { e }
-  | LET; decls = separated_nonempty_list(COMMA, vardec); IN expr = posexpr
-    ; { Cool.Let {decls; expr} }
-;
-
-(*
-. level 0
-@ level 1
-~ level 2
-isvoid level 3
-* / level 4
-+ - level 5
-<= < = level 6
-not level 7
-<- level 8
-
-All binary operations are left-associative, with the exception of
-assignment, which is right-associative,
-and the three comparison operations, which do not associate.
- *)
-assignpos:
-  | e = assignexpr { (e, $endpos) }
-(* ID <- expr *) (* right associative *)
-assignexpr:
-  | id = id; ASSIGN; e2 = posexpr { Cool.Assign(id, e2) }
-  | e = complementexpr {e }
-
-complementpos:
-  | e = complementexpr { (e, $endpos ) }
-;
-complementexpr:
-  | NOT; e = complementpos { Cool.Comp(e) }
-  | e = compareexpr { e }
-;
-
-comparepos:
-  | e = compareexpr { (e, $endpos) }
-;
-
-(* the three comparison operations do not associate, so you cannot *)
-(* have a list of them*)
-compareexpr:
-  | e1 = sumpos; LE; e2 = sumpos  { Lequal(e1, e2) }
-  | e1 = sumpos; LT; e2 = sumpos  { Less(e1, e2) }
-  | e1 = sumpos; EQ; e2 = sumpos  { Equal(e1, e2) }
-  | e = sumexpr { e }
-;
-
-sumpos:
-  | e = sumexpr { (e, $endpos) }
-;
-
-sumexpr:
-  | e1 = sumpos ; PLUS; e2 = prodpos { Cool.Plus(e1, e2) }
-  | e1 = sumpos ; MINUS; e2 = prodpos { Cool.Minus(e1, e2) }
-  | e = prodexpr { e }
-;
-
-prodpos:
-  | e = prodexpr { (e, $endpos) }
-;
-
-prodexpr:
-  | e1 = prodpos; MULT; e2 = isvoidpos { Cool.Mult(e1, e2) }
-  | e1 = prodpos; DIV; e2 = isvoidpos { Cool.Div(e1, e2) }
-  | e = isvoidexpr { e }
-;
-
-isvoidpos:
-  | e = isvoidexpr { (e, $endpos) }
-;
-isvoidexpr:
-  | ISVOID; e = isvoidpos { Cool.IsVoid(e) }
-  | e = negexpr { e }
-;
-
-negpos:
-  | e = negexpr { (e, $endpos) }
-;
-
-negexpr:
-  | NEG; e = negpos { Cool.Neg(e) } (* this makes neg right associative *)
-			       (* that's more useful, but contradicts *)
-			       (* what the assignment seems to say. *)
-  | e = dispatchexpr { e }
-;
-
-(* expr[@TYPE].ID( [ expr [[, expr]] ∗ ] ) *) 
-(* should be left associative *)
-dispatchpos:
-  | e = dispatchexpr { (e, $endpos) }
-;
-
-dispatchexpr:
-  | obj = dispatchpos; dispatchType = option(preceded(AT, TYPEID)); DOT;
-    ide = idexpr; LPAREN; args = separated_list(COMMA, posexpr);
-    RPAREN  { Dispatch { obj; dispatchType;
-			 id=(match ide with Cool.Id(r) -> r.name |
-					    _ -> failwith "only id"); args } }
-  | e = basicexpr { e }
-;
-
-basicpos:
-  | e = basicexpr { (e, $endpos) }
-basicexpr:
+  | LET; decls = separated_nonempty_list(COMMA, vardec);
+    IN expr = posexpr { Cool.Let {decls; expr} }
+  | id = id; ASSIGN; e2 = posexpr %prec ASSIGN { Cool.Assign(id, e2) } 
+  | NOT; e = posexpr %prec NOT { Cool.Comp(e) } 
+  | e1 = posexpr; LE; e2 = posexpr %prec LE { Lequal(e1, e2) } 
+  | e1 = posexpr; LT; e2 = posexpr  %prec LT { Less(e1, e2) } 
+  | e1 = posexpr; EQ; e2 = posexpr %prec EQ { Equal(e1, e2) } 
+  | e1 = posexpr; PLUS; e2 = posexpr %prec PLUS { Cool.Plus(e1, e2) } 
+  | e1 = posexpr; MINUS; e2 = posexpr %prec MINUS { Cool.Minus(e1, e2) } 
+  | e1 = posexpr; MULT; e2 = posexpr %prec MULT { Cool.Mult(e1, e2) } 
+  | e1 = posexpr; DIV; e2 = posexpr %prec DIV { Cool.Div(e1, e2) } 
+  | ISVOID; e = posexpr %prec ISVOID { Cool.IsVoid(e) } 
+  | NEG; e = posexpr %prec NEG  { Cool.Neg(e) } 
+  (* | obj = posexpr; dispatchType = option(preceded(AT, TYPEID)); DOT; *)
+  (*   ide = id; LPAREN; args = separated_list(COMMA, posexpr); *)
+  (*   RPAREN  { Dispatch { obj; dispatchType; id=ide.name; args } } *)
   | LPAREN; e = expr; RPAREN { e }
-  | id = idexpr { id }
   | int = INT_CONST { Cool.Int(int) } 
   | str = STR_CONST { Cool.Str(str) } 
   | b = BOOL_CONST { Cool.Bool(b) } 
-idpos:
-  | id = idexpr { (id, $endpos) }
-idexpr:
   | name = id { Cool.Id name }
+
 id:
-  | name = OBJECTID { { name; typ=None }}
+  | name = OBJECTID { { Cool.name; Cool.typ=None }}
+
+(* expr[@TYPE].ID( [ expr [[, expr]] ∗ ] ) *) 
+(* should be left associative *)

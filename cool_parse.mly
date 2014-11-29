@@ -51,6 +51,16 @@
 %left AT
 %left DOT 
 
+%{
+    let rec deflatten { Cool.decls; Cool.expr } = 
+      let (_, pos) = expr in 
+      match decls with
+      | [] -> failwith "empty let declaration list" 
+      | _ :: []  as singledecl -> {Cool.decls=singledecl; expr} 
+      | hd :: tl -> { decls=[hd]; expr=(Cool.Let(deflatten { decls=tl; expr
+						     }), pos) }
+%}
+
 (*%start <Cool.posexpr list> exprtop*)
 %start <Cool.posnode> program
 %%
@@ -94,7 +104,7 @@ posexpr:
 expr:
   | LBRACE sub=nonempty_list(terminated(posexpr, SEMI)) RBRACE { Block (sub) }
   | LET; decls = separated_nonempty_list(COMMA, vardec);
-    IN expr = posexpr { Cool.Let {decls; expr} }
+    IN expr = posexpr { Cool.Let (deflatten {decls; expr}) }
   | IF pred=posexpr THEN thenexp=posexpr ELSE elseexp
     = posexpr FI { Cool.If { pred; thenexp; elseexp } }
   | NEW s = TYPEID { Cool.New(s) }

@@ -25,10 +25,7 @@ and lines_of_posexpr posexpr = match posexpr with
 		   (lines_of_expr expr) @ [": _no_type"]
 and cat_expr a b = (lines_of_posexpr a) @ (lines_of_posexpr b)
 
-and fieldprint {fieldname; fieldtype; init} = 
-  [fieldname; fieldtype]  @  (match init with
-				     | None -> ["_no_expr"; ": _no_type"] 
-				     | Some(x) -> lines_of_posexpr x )
+and fieldprint {fieldname; fieldtype; init} = [fieldname; fieldtype;] @ (lines_of_posexpr init)
 and lines_of_branch {branchname; branchtype;  branche}
   = ["_branch"] @ padded([branchname; branchtype] @ (lines_of_posexpr branche))
 and lines_of_expr (expr : Cool.expr) = match expr with 
@@ -65,12 +62,12 @@ and lines_of_expr (expr : Cool.expr) = match expr with
   | Int(str) ->  [ "_int"] @ padded [str]
   | Str(str) -> [ "_string" ] @ padded ["\"" ^ (Cool_lexer.print_escaped_string str) ^ "\""]
   | Bool(b) -> [ "_bool" ] @ padded [if b then "1" else "0" ]
+  | NoExpr -> ["_no_expr"]
 and lines_of_dispatch {obj; dispatchType; id; args } = match dispatchType with
   | None -> ["_dispatch"]  @ padded  ( ( lines_of_posexpr obj ) @ [ id; "("  ] @ 
 		(List.concat ( List.map args ~f:lines_of_posexpr )) @ [ ")" ] )
   | Some(typ) -> ["_static_dispatch" ] @ padded ( (lines_of_posexpr obj) @ [ typ; id; "("]  @
 		(List.concat ( List.map args ~f:lines_of_posexpr )) @ [ ")" ] )
-
 let syntax_error lexbuf = 
   [Printf.sprintf "\"%s\", line %d: parse error at or near %s"  
 		  lexbuf.Lexing.lex_curr_p.pos_fname 

@@ -67,7 +67,7 @@
 
 (* need at least one class. *)
 program:
-  | classes = classrule+; EOF { (Cool.Prog(classes), $endpos) }
+  | classes = classrule+; EOF { (Cool.Prog(classes), $endpos(classes)) }
 ;
 
 classrule:
@@ -91,8 +91,12 @@ classfield:
 
 vardec:
   | fieldname = OBJECTID; COLON; fieldtype = TYPEID; 
-    init = preceded(ASSIGN, posexpr)?; { { Cool.fieldname; Cool.fieldtype;
-						Cool.init } }
+    init = preceded(ASSIGN, posexpr)?; { 
+		     { Cool.fieldname; Cool.fieldtype;
+		       Cool.init=match init
+				 with 
+				 | None -> (NoExpr, $endpos(init))
+				 | Some(x) -> x }}
 
 formal:
   | id = OBJECTID COLON typ = TYPEID { (Cool.Formal(id, typ), $endpos) }

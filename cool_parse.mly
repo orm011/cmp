@@ -124,6 +124,9 @@ expr:
   | e1 = posexpr; DIV; e2 = posexpr %prec DIV { Cool.Div(e1, e2) } 
   | ISVOID; e = posexpr %prec ISVOID { Cool.IsVoid(e) } 
   | NEG; e = posexpr %prec NEG  { Cool.Neg(e) } 
+  | ide = id; LPAREN; args = separated_list(COMMA, posexpr); 
+     RPAREN { Dispatch { Cool.obj=(Cool.Id { Cool.name="self"; Cool.typ=None}, $startpos(ide)); Cool.dispatchType=None;
+				    Cool.id=ide.Cool.name; args } } 
   | obj = posexpr;  DOT;  
      ide = id; LPAREN; args = separated_list(COMMA, posexpr); 
      RPAREN { Dispatch { Cool.obj; Cool.dispatchType=None;

@@ -69,10 +69,10 @@ and lines_of_dispatch {obj; dispatchType; id; args } = match dispatchType with
   | Some(typ) -> ["_static_dispatch" ] @ padded ( (lines_of_posexpr obj) @ [ typ; id; "("]  @
 		(List.concat ( List.map args ~f:lines_of_posexpr )) @ [ ")" ] )
 let syntax_error lexbuf = 
-  [Printf.sprintf "\"%s\", line %d: parse error at or near %s"  
-		  lexbuf.Lexing.lex_curr_p.pos_fname 
-		  lexbuf.Lexing.lex_curr_p.pos_lnum 
-		  (Cool_lexer.string_of_tok  (Cool_lexer.read lexbuf))]
+  [Printf.sprintf "\"%s\", line %d: parse error at or near %d"  
+		  lexbuf.Lexing.lex_start_p.pos_fname 
+		  lexbuf.Lexing.lex_start_p.pos_lnum 
+		  lexbuf.Lexing.lex_start_p.pos_cnum]
 
 let () = 
      let infile = Sys.argv.(1) in 

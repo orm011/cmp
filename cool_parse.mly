@@ -75,8 +75,7 @@ classrule:
     = preceded(INHERITS, TYPEID)? LBRACE features
     = classfield* RBRACE SEMI
 	     { let inherits = (match inh with None -> "Object" | Some (x)  -> x ) in 
-	       (Cool.Class { classname; inherits; features }, $endpos) }
-;
+	       (Cool.Class { classname; inherits; features }, $endpos) };
 
 (* todo: parses list, returns list  *)
 classfield:

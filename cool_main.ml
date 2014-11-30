@@ -63,7 +63,7 @@ and lines_of_expr (expr : Cool.expr) = match expr with
   | IsVoid(a) -> ["_isvoid"] @ padded (lines_of_posexpr a)
   | Id(i) -> [ "_object"; ] @ padded [i.name]
   | Int(str) ->  [ "_int"] @ padded [str]
-  | Str(str) -> [ "_string" ] @ padded ["\"" ^ str ^ "\""]
+  | Str(str) -> [ "_string" ] @ padded ["\"" ^ (Cool_lexer.print_escaped_string str) ^ "\""]
   | Bool(b) -> [ "_bool" ] @ padded [if b then "1" else "0" ]
 and lines_of_dispatch {obj; dispatchType; id; args } = match dispatchType with
   | None -> ["_dispatch"]  @ padded  ( ( lines_of_posexpr obj ) @ [ id; "("  ] @ 

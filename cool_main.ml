@@ -35,10 +35,20 @@ and lines_of_expr (expr : Cool.expr) = match expr with
   | Let {decls; expr} -> ["_let"]  @ padded ((List.concat (List.map decls ~f:fieldprint)) @ 
 (lines_of_posexpr expr))
   | Block a -> ["_block"] @ padded (List.concat (List.map a ~f:lines_of_posexpr))
-  | If {pred; thenexp; elseexp} -> ["_cond"] @ padded (List.concat (List.map [pred; thenexp; elseexp] ~f:lines_of_posexpr))
+  | If {pred; thenexp; elseexp} -> ["_cond"] @ 
+				     padded (List.concat 
+					       (List.map 
+						  [pred; thenexp; elseexp] 
+						  ~f:lines_of_posexpr))
   | New a -> ["_new"] @ padded [a]
   | Loop { cond; body } -> ["_loop" ] @ padded ((lines_of_posexpr cond) @ (lines_of_posexpr body))
-  | Case { test; branches} -> ["_typcase"] @ padded ((lines_of_posexpr test) @ (List.concat  (List.map  branches  ~f:lines_of_branch) ))
+  | Case { test; branches} -> ["_typcase"] @ 
+				padded (
+				    (lines_of_posexpr test) 
+				    @ (List.concat  
+					 (List.map  
+					    branches  
+					    ~f:lines_of_branch)))
   | Assign(a,b) -> ["_assign"] @ padded ( [a.name]  @ (lines_of_posexpr b))
   | Comp(a) -> ["_comp" ] @ padded (lines_of_posexpr a)
   | Lequal(a,b) -> [ "_lte" ] @ padded (cat_expr a b)
@@ -62,7 +72,10 @@ and lines_of_dispatch {obj; dispatchType; id; args } = match dispatchType with
 		(List.concat ( List.map args ~f:lines_of_posexpr )) @ [ ")" ] )
 
 let syntax_error lexbuf = 
-  [Printf.sprintf "\"%s\", line %d: parse error at or near %s"  lexbuf.Lexing.lex_curr_p.pos_fname lexbuf.Lexing.lex_curr_p.pos_lnum (Cool_lexer.string_of_tok  (Cool_lexer.read lexbuf))]
+  [Printf.sprintf "\"%s\", line %d: parse error at or near %s"  
+		  lexbuf.Lexing.lex_curr_p.pos_fname 
+		  lexbuf.Lexing.lex_curr_p.pos_lnum 
+		  (Cool_lexer.string_of_tok  (Cool_lexer.read lexbuf))]
 
 let () = 
      let infile = Sys.argv.(1) in 

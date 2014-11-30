@@ -61,11 +61,33 @@ and lines_of_dispatch {obj; dispatchType; id; args } = match dispatchType with
   | Some(typ) -> ["_static_dispatch" ] @ padded ( (lines_of_posexpr obj) @ [ typ; id; "("]  @
 		(List.concat ( List.map args ~f:lines_of_posexpr )) @ [ ")" ] )
 
+let syntax_error lexbuf = 
+  [Printf.sprintf "\"%s\", line %d: parse error at or near %s"  lexbuf.Lexing.lex_curr_p.pos_fname lexbuf.Lexing.lex_curr_p.pos_lnum (Cool_lexer.string_of_tok  (Cool_lexer.read lexbuf))]
+
 let () = 
      let infile = Sys.argv.(1) in 
      let inch = In_channel.create infile in
      let lexbuf = Lexing.from_channel inch in
-     lexbuf.lex_curr_p <- { lexbuf.lex_start_p with pos_fname = infile
-			  };
-     let prg = Cool_parse.program Cool_lexer.read lexbuf
-     in Printf.printf "%s\n" (String.concat ~sep:"\n" (lines_of_posnode prg))
+     lexbuf.lex_curr_p <- { lexbuf.lex_start_p with pos_fname = infile }; 
+     let prg = try Some(Cool_parse.program Cool_lexer.read lexbuf)
+	       with _ -> None in 
+     let print_prg =  
+	  function
+	  | Some(p) -> lines_of_posnode p
+	  | None -> (syntax_error lexbuf) @ ["Compilation halted due to lex and parse errors"] in 
+     Printf.printf "%s\n" (String.concat ~sep:"\n" (print_prg prg))
+
+(**
+    public void syntax_error(Symbol cur_token) {
+        int lineno = action_obj.curr_lineno();
+	String filename = action_obj.curr_filename().getString();
+        System.err.print("\"" + filename + "\", line " + lineno + 
+		         ": parse error at or near ");
+        Utilities.printToken(cur_token);
+	omerrs++;
+	if (omerrs>50) {
+	   System.err.println("More than 50 errors");
+	   System.exit(1);
+	}
+    }
+ **)

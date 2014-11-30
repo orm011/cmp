@@ -114,7 +114,7 @@ expr:
     =nonempty_list(terminated(branch, SEMI))
 		  ESAC { Case {test; branches }} 
   | id = id; ASSIGN; e2 = posexpr %prec ASSIGN { Cool.Assign(id, e2) } 
-  | NOT; e = posexpr %prec NOT { Cool.Comp(e) } 
+  | NOT; e = posexpr  { Cool.Comp(e) } 
   | e1 = posexpr; LE; e2 = posexpr %prec LE { Lequal(e1, e2) } 
   | e1 = posexpr; LT; e2 = posexpr  %prec LT { Less(e1, e2) } 
   | e1 = posexpr; EQ; e2 = posexpr %prec EQ { Equal(e1, e2) } 
@@ -124,9 +124,13 @@ expr:
   | e1 = posexpr; DIV; e2 = posexpr %prec DIV { Cool.Div(e1, e2) } 
   | ISVOID; e = posexpr %prec ISVOID { Cool.IsVoid(e) } 
   | NEG; e = posexpr %prec NEG  { Cool.Neg(e) } 
-  (* | obj = posexpr; dispatchType = option(preceded(AT, TYPEID)); DOT; *)
-  (*   ide = id; LPAREN; args = separated_list(COMMA, posexpr); *)
-  (*   RPAREN  { Dispatch { obj; dispatchType; id=ide.name; args } } *)
+  | obj = posexpr;  DOT;  
+     ide = id; LPAREN; args = separated_list(COMMA, posexpr); 
+     RPAREN { Dispatch { Cool.obj; Cool.dispatchType=None;
+				    Cool.id=ide.Cool.name; args } } 
+  | obj = posexpr AT distype = TYPEID DOT ide = id; LPAREN; 
+    args = separated_list(COMMA, posexpr) RPAREN
+	{ Dispatch { Cool.obj; Cool.dispatchType=Some(distype); Cool.id=ide.Cool.name; args } } 
   | LPAREN; e = expr; RPAREN { e }
   | int = INT_CONST { Cool.Int(int) } 
   | str = STR_CONST { Cool.Str(str) } 

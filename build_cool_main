@@ -1,2 +1,2 @@
 [[ $1 == trace ]] && F="-yaccflag --trace"
-corebuild -use-menhir $F  cool_main.byte
+corebuild -use-menhir $F -yaccflag --error-recovery -yaccflag --explain cool_main.byte

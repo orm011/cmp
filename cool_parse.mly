@@ -1,46 +1,8 @@
-%token ASSIGN
-%token AT
-%token CASE
-%token CLASS
-%token COLON
-%token COMMA
-%token DARROW
-%token DIV
-%token DOT
-%token ELSE
-%token EOF
-%token EQ
-%token ESAC
-%token FI
-%token IF
-%token IN
-%token INHERITS
-%token ISVOID
-%token LBRACE
-%token LE
-%token LET
-%token LOOP
-%token LPAREN
-%token LT
-%token MINUS
-%token MULT
-%token NEG
-%token NEW
-%token NOT
-%token OF
-%token PLUS
-%token POOL
-%token RBRACE
-%token RPAREN
-%token SEMI
-%token THEN
-%token WHILE 
+%token ASSIGN AT CASE CLASS COLON COMMA DARROW DIV DOT ELSE EOF EQ
+       ESAC FI IF IN INHERITS ISVOID LBRACE LE LET LOOP LPAREN LT OF
+       MINUS MULT NEG NEW NOT PLUS POOL RBRACE RPAREN SEMI THEN WHILE 
+%token <string> INT_CONST OBJECTID  STR_CONST  TYPEID ERROR 
 %token <bool>  BOOL_CONST 
-%token <string> INT_CONST 
-%token <string> OBJECTID 
-%token <string> STR_CONST 
-%token <string> TYPEID 
-%token <string> ERROR 
 
 %nonassoc LET
 %right ASSIGN		  

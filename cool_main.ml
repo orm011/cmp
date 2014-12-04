@@ -52,8 +52,8 @@ and lines_of_expr (expr : Cool.expr) = match expr with
   | Assign(a,b) -> ["_assign"] @ padded ( [a.name]  @ (lines_of_posexpr b))
   | Comp(a) -> ["_comp" ] @ padded (lines_of_posexpr a)
   | Lequal(a,b) -> [ "_lte" ] @ padded (cat_expr a b)
-  | Equal(a,b) -> [ "_eq" ] @ padded (cat_expr a b)
-  | Less(a,b) -> [ "_lt" ] @ padded (cat_expr a b)
+  | Eq(a,b) -> [ "_eq" ] @ padded (cat_expr a b)
+  | Lt(a,b) -> [ "_lt" ] @ padded (cat_expr a b)
   | Div(a,b) -> [ "_divide" ] @ padded (cat_expr a b)
   | Mult(a,b) -> [ "_mul" ] @ padded (cat_expr a b)
   | Minus(a,b) -> [ "_sub" ] @ padded (cat_expr a b)
@@ -76,7 +76,7 @@ let () =
      let infile = Sys.argv.(1) in 
      let inch = In_channel.create infile in
      let lexbuf = Lexing.from_channel inch in
-     lexbuf.lex_curr_p <- { lexbuf.lex_start_p with pos_fname = infile }; 
+     lexbuf.lex_curr_p <- { lexbuf.lex_start_p with pos_fname = infile };
      let prg = try Some(Cool_parse.program Cool_lexer.read lexbuf)
 	       with _ -> None in 
      let print_prg prg =  

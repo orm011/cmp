@@ -5,8 +5,8 @@ type expr =
   | Assign of idrec * posexpr
   | Comp of posexpr
   | Lequal of posexpr * posexpr
-  | Less of posexpr * posexpr
-  | Equal of posexpr * posexpr 
+  | Lt of posexpr * posexpr
+  | Eq of posexpr * posexpr 
   | Plus of posexpr * posexpr
   | Minus of posexpr * posexpr
   | Mult of posexpr * posexpr

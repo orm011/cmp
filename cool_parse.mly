@@ -123,8 +123,8 @@ expr:
   | id = id; ASSIGN; e2 = posexpr %prec ASSIGN { Cool.Assign(id, e2) } 
   | NOT; e = posexpr  { Cool.Comp(e) } 
   | e1 = posexpr; LE; e2 = posexpr %prec LE { Lequal(e1, e2) } 
-  | e1 = posexpr; LT; e2 = posexpr  %prec LT { Less(e1, e2) } 
-  | e1 = posexpr; EQ; e2 = posexpr %prec EQ { Equal(e1, e2) } 
+  | e1 = posexpr; LT; e2 = posexpr  %prec LT { Lt(e1, e2) } 
+  | e1 = posexpr; EQ; e2 = posexpr %prec EQ { Eq(e1, e2) } 
   | e1 = posexpr; PLUS; e2 = posexpr %prec PLUS { Cool.Plus(e1, e2) } 
   | e1 = posexpr; MINUS; e2 = posexpr %prec MINUS { Cool.Minus(e1, e2) } 
   | e1 = posexpr; MULT; e2 = posexpr %prec MULT { Cool.Mult(e1, e2) } 

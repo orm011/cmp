@@ -9,6 +9,7 @@ and lines_of_posnode posnode =
   let (_, p) = posnode in ["#" ^ string_of_int p.Lexing.pos_lnum] @ lines_of_node posnode
 
 and lines_of_node posnode = match posnode with
+  | (ParseError, _) -> failwith "why print parse error?"
   | (Prog (clslist), _) ->
      ["_program"] @ padded (List.concat (List.map ~f:lines_of_posnode  clslist))
   | (Class ({classname;inherits;features}), pos) ->
@@ -30,6 +31,7 @@ and fieldprint {fieldname; fieldtype; init} = [fieldname; fieldtype;] @ (lines_o
 and lines_of_branch {branchname; branchtype;  branche}
   = ["_branch"] @ padded([branchname; branchtype] @ (lines_of_posexpr branche))
 and lines_of_expr (expr : Cool.expr) = match expr with 
+  | ExprError -> failwith "why print expr error?"
   | Let {decls; expr} -> ["_let"]  @ padded ((List.concat (List.map decls ~f:fieldprint)) @ 
 (lines_of_posexpr expr))
   | Block a -> ["_block"] @ padded (List.concat (List.map a ~f:lines_of_posexpr))

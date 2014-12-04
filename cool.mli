@@ -24,6 +24,7 @@ type expr =
   | Loop of looprec
   | Case of caserec
   | NoExpr
+  | ExprError
 and caserec = { test:posexpr; branches:branch list}
 and branch  = { branchname:string; branchtype:string;  branche:posexpr }
 and looprec =  { cond:posexpr; body:posexpr }
@@ -38,6 +39,7 @@ and node =
 | Class of classrec
 | Method of methodrec
 | Formal of string * string
+| ParseError
  and posnode = node * Lexing.position
  and field = { fieldname : string; fieldtype : string; init : posexpr }
  and classrec = { classname : string; inherits : string;

@@ -75,6 +75,10 @@ classrule:
     = classfield* RBRACE SEMI
 	     { let inherits = (match inh with None -> "Object" | Some (x)  -> x ) in 
 	       (Cool.Class { classname; inherits; features }, $endpos) };
+  | CLASS classname = TYPEID inh
+    = preceded(INHERITS, TYPEID)? LBRACE error RBRACE SEMI 
+	      { Cool_tools.syntax_error $startpos $startofs "classrule"; 
+		(ParseError, $startpos) }
 
 (* todo: parses list, returns list  *)
 classfield:

@@ -52,13 +52,10 @@
 %left DOT 
 
 %{
-    let rec deflatten { Cool.decls; Cool.expr } = 
-      let (_, pos) = expr in 
-      match decls with
-      | [] -> failwith "empty let declaration list" 
-      | _ :: []  as singledecl -> {Cool.decls=singledecl; expr} 
-      | hd :: tl -> { decls=[hd]; expr=(Cool.Let(deflatten { decls=tl; expr
-						     }), pos) }
+    open Cool;;
+    open Cool_tools;;
+    
+(*   set_debug ();;*)
 %}
 
 (*%start <Cool.posexpr list> exprtop*)

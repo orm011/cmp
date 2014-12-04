@@ -18,18 +18,15 @@
 %{
     open Cool;;
     open Cool_tools;;
-    
 (*   set_debug ();;*)
 %}
 
 %start <Cool.posnode> program
 (*%start <Cool.posexpr> posexpr*)
-%%
 
-(* need at least one class. *)
+%%
 program:
   | classes = classrule+; EOF { (Cool.Prog(classes), $endpos(classes)) }
-;
 
 classrule:
   | CLASS classname = TYPEID inh
@@ -42,7 +39,6 @@ classrule:
 	      { Cool_tools.syntax_error $startpos $startofs "classrule"; 
 		(ParseError, $startpos) }
 
-(* todo: parses list, returns list  *)
 classfield:
   | field = vardec SEMI { (Cool.VarField field, $endpos) }
   | methodname  = OBJECTID; LPAREN; formalparams = separated_list(COMMA, formal);
@@ -51,7 +47,6 @@ classfield:
 							 formalparams;
 							 returnType;
 							 defn }, $endpos) }
-;
 
 vardec:
   | fieldname = OBJECTID; COLON; fieldtype = TYPEID; 
@@ -64,11 +59,10 @@ vardec:
 
 formal:
   | id = OBJECTID COLON typ = TYPEID { (Cool.Formal(id, typ), $endpos) }
-;
 
 posexpr:
   | e = expr { (e, $endpos) }
-;
+
 expr:
   | LBRACE sub=nonempty_list(terminated(posexpr, SEMI)) RBRACE { Block (sub) }
   | LET; decls = separated_nonempty_list(COMMA, vardec);
@@ -116,5 +110,3 @@ id:
 branch:
   | branchname=OBJECTID COLON branchtype=TYPEID DARROW branche
     =posexpr { { branchname; branchtype; branche } }
-(* expr[@TYPE].ID( [ expr [[, expr]] ∗ ] ) *) 
-(* should be left associative *)

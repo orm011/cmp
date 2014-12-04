@@ -60,8 +60,8 @@
 (*   set_debug ();;*)
 %}
 
-(*%start <Cool.posexpr list> exprtop*)
 %start <Cool.posnode> program
+(*%start <Cool.posexpr> posexpr*)
 %%
 
 (* need at least one class. *)

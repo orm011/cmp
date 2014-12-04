@@ -42,7 +42,9 @@
 %token <string> TYPEID 
 %token <string> ERROR 
 
+%nonassoc LET
 %right ASSIGN		  
+%right NOT
 %nonassoc LE LT EQ
 %left PLUS MINUS
 %left MULT DIV
@@ -104,7 +106,8 @@ posexpr:
 expr:
   | LBRACE sub=nonempty_list(terminated(posexpr, SEMI)) RBRACE { Block (sub) }
   | LET; decls = separated_nonempty_list(COMMA, vardec);
-    IN expr = posexpr { Cool.Let (deflatten {decls; expr}) }
+    IN expr = posexpr %prec LET { Cool.Let (Cool_tools.deflatten {decls; expr}
+		      ) }
   | IF pred=posexpr THEN thenexp=posexpr ELSE elseexp
     = posexpr FI { Cool.If { pred; thenexp; elseexp } }
   | NEW s = TYPEID { Cool.New(s) }

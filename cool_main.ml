@@ -1,6 +1,8 @@
 open Core.Std;;
 open Cool;;
 open Cool_tools;;
+open Cool_lexer;;
+
 
 let pad str = (String.make 2 ' ') ^ str;;
 
@@ -72,7 +74,16 @@ and lines_of_dispatch {obj; dispatchType; id; args } = match dispatchType with
   | Some(typ) -> ["_static_dispatch" ] @ padded ( (lines_of_posexpr obj) @ [ typ; id; "("]  @
 		(List.concat ( List.map args ~f:lines_of_posexpr )) @ [ ")" ] )
 
-let () = 
+let tokenize_main () =
+     for i = 1 to (Array.length Sys.argv - 1) do
+     let infile = Sys.argv.(i) in
+     let inch = In_channel.create infile in
+     Printf.fprintf stdout "#name \"%s\"\n" infile;
+     tokenize_from_to inch stdout;
+     In_channel.close inch
+     done
+
+let parse_main () = 
      let infile = Sys.argv.(1) in 
      let inch = In_channel.create infile in
      let lexbuf = Lexing.from_channel inch in
@@ -88,17 +99,4 @@ let () =
 			 lexbuf.lex_start_p lexbuf.lex_start_pos "top" ); ["Compilation halted due to lex and parse errors"] in
      Printf.printf "%s\n%!" (String.concat ~sep:"\n" (print_prg prg))
 
-(**
-    public void syntax_error(Symbol cur_token) {
-        int lineno = action_obj.curr_lineno();
-	String filename = action_obj.curr_filename().getString();
-        System.err.print("\"" + filename + "\", line " + lineno + 
-		         ": parse error at or near ");
-        Utilities.printToken(cur_token);
-	omerrs++;
-	if (omerrs>50) {
-	   System.err.println("More than 50 errors");
-	   System.exit(1);
-	}
-    }
- **)
+let () = parse_main ();;

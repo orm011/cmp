@@ -227,15 +227,5 @@ let tokenize_file infile  =
     Printf.fprintf outch "#name \"%s\"\n" infile; 
     tokenize_from_to inch outch;;
 
-(* (\* let () = if (Array.length Sys.argv)  = 2 then  *)
-(* (tokenize_file Sys.argv.(1)) else (tokenize_from_to stdin stdout);;*\) *)
-(* let () =  *)
-(*      for i = 1 to (Array.length Sys.argv - 1) do *)
-(*      let infile = Sys.argv.(i) in  *)
-(*      let inch = In_channel.create infile in *)
-(*      Printf.fprintf stdout "#name \"%s\"\n" infile;  *)
-(*      tokenize_from_to inch stdout; *)
-(*      In_channel.close inch *)
-(*      done *)
 
 }

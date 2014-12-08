@@ -5,7 +5,7 @@
 %token <bool>  BOOL_CONST 
 
 %nonassoc LET
-%right ASSIGN		  
+%right ASSIGN
 %right NOT
 %nonassoc LE LT EQ
 %left PLUS MINUS
@@ -13,13 +13,27 @@
 %left ISVOID
 %left NEG
 %left AT
-%left DOT 
+%left DOT
 
 %{
     open Cool;;
     open Cool_tools;;
-(*   set_debug ();;*)
+(*      set_debug ();;*)
 %}
+
+(*
+error recovery:
+
+- error in a class definition but the class is terminated
+  properly and the next class is syntactically correct, the
+  parser should be able to restart at the next class definition
+
+- from errors in features (going on to the next feature)
+
+- a let binding going on to the next variable)
+
+- an expression inside a {...} block
+*)
 
 %start <Cool.posnode> program
 (*%start <Cool.posexpr> posexpr*)
@@ -33,7 +47,10 @@ classrule:
     = preceded(INHERITS, TYPEID)? LBRACE features
     = classfield* RBRACE SEMI
 	     { let inherits = (match inh with None -> "Object" | Some (x)  -> x ) in 
-	       (Cool.Class { classname; inherits; features }, $endpos) };
+	       (Cool.Class { classname; inherits; features }, $endpos) }
+  | CLASS error RBRACE SEMI { syntax_error $startpos $startofs "clasrule"; 
+			      (ParseError, $endpos) }
+  | CLASS error EOF { failwith "save me" }
 
 classfield:
   | field = vardec SEMI { (Cool.VarField field, $endpos) }
@@ -42,28 +59,54 @@ classfield:
 		       = posexpr RBRACE; SEMI;  { (Cool.Method { methodname; 
 							 formalparams;
 							 returnType;
-							 defn }, $endpos) }
+							 defn }
+						  , $endpos) }
+  | error SEMI {
+	    syntax_error $startpos $startofs "classfield";
+			      (ParseError, $endpos) }
+  | error EOF { failwith "save me" }
 
 vardec:
-  | fieldname = OBJECTID; COLON; fieldtype = TYPEID; 
-    init = preceded(ASSIGN, posexpr)?; { 
+  | fieldname = OBJECTID COLON fieldtype = TYPEID ASSIGN init=posexpr; {
 		     { Cool.fieldname; Cool.fieldtype;
-		       Cool.init=match init
-				 with 
-				 | None -> (NoExpr, $endpos(init))
-				 | Some(x) -> x }}
-
+		       Cool.init=init } }
+  | fieldname = OBJECTID COLON fieldtype = TYPEID { { fieldname; fieldtype;
+						    init=(NoExpr, $endpos) }}
 formal:
   | id = OBJECTID COLON typ = TYPEID { (Cool.Formal(id, typ), $endpos) }
 
 posexpr:
   | e = expr { (e, $endpos) }
 
+revdecls:
+  | dec = vardec { dec :: [] }
+  | rest = revdecls COMMA dec = vardec { dec :: rest }
+  | e = error { e; syntax_error $startpos(e) $startofs(e) "revdecls"; {fieldname="dummy"; fieldtype ="Dummy"; init=(ExprError, $endpos)} :: []  }
+  | rest = revdecls COMMA e = error { e; syntax_error $startpos(e) $startofs(e) "many"; {fieldname="dummy"; fieldtype ="Dummy"; init=(ExprError, $endpos)} :: []  }
+  | error EOF { failwith "save me" }
+
+letdecls:
+  | rev = revdecls { List.rev rev }
+
+revbrace:
+  | first = posexpr SEMI { first :: [] }
+  | rest = revbrace first = posexpr SEMI { first :: rest }
+  | error SEMI { syntax_error $startpos $startofs "withinbrace";  (ExprError, $endpos) :: [] }
+  | error EOF { failwith "save me" }
+
+brace:
+  | revbr = revbrace { List.rev revbr }
+
+within:
+  | expr = posexpr %prec LET { expr }
+  | error { syntax_error $startpos $startofs "within"; (ExprError, $endpos) }
+  | error EOF { failwith "save me" }
+
 expr:
-  | LBRACE sub=nonempty_list(terminated(posexpr, SEMI)) RBRACE { Block (sub) }
-  | LET; decls = separated_nonempty_list(COMMA, vardec);
-    IN expr = posexpr %prec LET { Cool.Let (Cool_tools.deflatten {decls; expr}
-		      ) }
+  | LBRACE sub = brace RBRACE { Block (sub) }
+  | LET; decls = letdecls IN expr = within { Cool.Let (Cool_tools.deflatten {decls;
+							       expr}
+			     ) }
   | IF pred=posexpr THEN thenexp=posexpr ELSE elseexp
     = posexpr FI { Cool.If { pred; thenexp; elseexp } }
   | NEW s = TYPEID { Cool.New(s) }

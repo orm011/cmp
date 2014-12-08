@@ -40,17 +40,28 @@ error recovery:
 
 %%
 program:
-  | classes = classrule+; EOF { (Cool.Prog(classes), $endpos(classes)) }
+  | classes = classlists; EOF { (Cool.Prog(classes), $endpos(classes)) }
 
-classrule:
-  | CLASS classname = TYPEID inh
-    = preceded(INHERITS, TYPEID)? LBRACE features
+classlists:
+  | rev = revclasslists { List.rev rev }
+
+revclasslists:
+  | CLASS c = singleclass { c :: [] }
+  | rest = revclasslists CLASS cl = singleclass  { cl :: rest }
+  | rest = revclasslists CLASS e = error  {
+			  syntax_error $startpos(e) $startofs(e) "classlist";
+			  (ParseError, $endpos) :: []
+			}
+  | CLASS e = error { syntax_error $startpos(e) $startofs(e) "classlist";
+			      (ParseError, $endpos) :: [] }
+
+singleclass:
+  | classname = TYPEID INHERITS inherits = TYPEID LBRACE features
     = classfield* RBRACE SEMI
-	     { let inherits = (match inh with None -> "Object" | Some (x)  -> x ) in 
-	       (Cool.Class { classname; inherits; features }, $endpos) }
-  | CLASS error RBRACE SEMI { syntax_error $startpos $startofs "clasrule"; 
-			      (ParseError, $endpos) }
-  | CLASS error EOF { failwith "save me" }
+	     { (Cool.Class { classname; inherits; features }, $endpos)  }
+  | classname = TYPEID LBRACE features = classfield* RBRACE SEMI
+	     { (Cool.Class { classname; inherits="Object"; features }, $endpos) }
+
 
 classfield:
   | field = vardec SEMI { (Cool.VarField field, $endpos) }

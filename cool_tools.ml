@@ -8,14 +8,17 @@ let err_count () = !errcount;;
 
 let set_debug () = debug := true;;
 
+let untyped_expr (expr:expr) (pos:Lexing.position) = 
+		   { expr; pos; typ=None; }
+
 
 let rec deflatten { decls; expr } = 
-  let (_, pos) = expr in 
+  let { pos; _ } = expr in 
   match decls with
   | [] -> failwith "empty let declaration list" 
   | _ :: []  as singledecl -> {decls=singledecl; expr} 
-  | hd :: tl -> { decls=[hd]; expr=(Let(deflatten { decls=tl; expr
-						     }), pos) }
+  | hd :: tl -> { decls=[hd]; expr=(untyped_expr (Let (deflatten { decls=tl; expr
+						     }))  pos) }
 
 let debug_print str =
   if !debug then Printf.eprintf "(Debug) printing from %s\n%!" str else ()
@@ -25,4 +28,5 @@ let syntax_error startp startofs loc =
   debug_print loc;
   Printf.eprintf "\"%s\", line %d: parse error at or near %d\n%!"  
 		 startp.Lexing.pos_fname startp.Lexing.pos_lnum
-		 (startofs - startp.Lexing.pos_bol);
+		 (startofs - startp.Lexing.pos_bol);;
+

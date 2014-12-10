@@ -31,7 +31,9 @@ and looprec =  { cond:posexpr; body:posexpr }
 and ifrec = { pred:posexpr; thenexp:posexpr; elseexp:posexpr }
 and letrec = { decls: field list; expr: posexpr }
 and dispatchrec = {obj:posexpr; dispatchType:string option; id:string; args:posexpr list}
-and posexpr = expr * Lexing.position
+and posexpr = { expr:expr;  
+		pos:Lexing.position; 
+		typ:string option }
 and idrec = {name:string; typ:string option}
 and node = 
 | Prog of posnode list
@@ -45,6 +47,7 @@ and node =
  and classrec = { classname : string; inherits : string;
 		  features : posnode list }
  and methodrec = { methodname: string; formalparams: posnode list; 
-		 returnType: string; defn:posexpr}
+		 returnType: string; defn:posexpr};;
+
 (* the formal params is a list of formals with position
 but to print them we need them to be posnodes *)

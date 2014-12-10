@@ -77,23 +77,26 @@ classfield:
 			      (ParseError, $endpos) }
   | error EOF { failwith "save me" }
 
+posexpr:
+  | expr = expr { (untyped_expr expr $endpos) }
+
 vardec:
   | fieldname = OBJECTID COLON fieldtype = TYPEID ASSIGN init=posexpr; {
-		     { Cool.fieldname; Cool.fieldtype;
-		       Cool.init=init } }
+		     { Cool.fieldname; Cool.fieldtype; Cool.init=init } }
   | fieldname = OBJECTID COLON fieldtype = TYPEID { { fieldname; fieldtype;
-						    init=(NoExpr, $endpos) }}
+						    init=(untyped_expr NoExpr $endpos) }}
 formal:
   | id = OBJECTID COLON typ = TYPEID { (Cool.Formal(id, typ), $endpos) }
 
-posexpr:
-  | e = expr { (e, $endpos) }
 
 revdecls:
   | dec = vardec { dec :: [] }
   | rest = revdecls COMMA dec = vardec { dec :: rest }
-  | e = error { e; syntax_error $startpos(e) $startofs(e) "revdecls"; {fieldname="dummy"; fieldtype ="Dummy"; init=(ExprError, $endpos)} :: []  }
-  | rest = revdecls COMMA e = error { e; syntax_error $startpos(e) $startofs(e) "many"; {fieldname="dummy"; fieldtype ="Dummy"; init=(ExprError, $endpos)} :: []  }
+  | e = error { e; syntax_error $startpos(e) $startofs(e) "revdecls"; {fieldname="dummy"; fieldtype ="Dummy"; init=( untyped_expr  ExprError $endpos  )} :: []  }
+  | rest = revdecls COMMA e = error 
+				{ e; syntax_error $startpos(e)
+				     $startofs(e) "many"; 
+				  {fieldname="dummy"; fieldtype ="Dummy"; init=(untyped_expr ExprError $endpos)} :: []  }
   | error EOF { failwith "save me" }
 
 letdecls:
@@ -102,7 +105,7 @@ letdecls:
 revbrace:
   | first = posexpr SEMI { first :: [] }
   | rest = revbrace first = posexpr SEMI { first :: rest }
-  | error SEMI { syntax_error $startpos $startofs "withinbrace";  (ExprError, $endpos) :: [] }
+  | error SEMI { syntax_error $startpos $startofs "withinbrace";  (untyped_expr ExprError  $endpos) :: [] }
   | error EOF { failwith "save me" }
 
 brace:
@@ -110,7 +113,7 @@ brace:
 
 within:
   | expr = posexpr %prec LET { expr }
-  | error { syntax_error $startpos $startofs "within"; (ExprError, $endpos) }
+  | error { syntax_error $startpos $startofs "within"; (untyped_expr ExprError $endpos) }
   | error EOF { failwith "save me" }
 
 expr:
@@ -138,8 +141,7 @@ expr:
   | ISVOID; e = posexpr %prec ISVOID { Cool.IsVoid(e) } 
   | NEG; e = posexpr %prec NEG  { Cool.Neg(e) } 
   | ide = id; LPAREN; args = separated_list(COMMA, posexpr); 
-     RPAREN { Dispatch { Cool.obj=(Cool.Id { Cool.name="self"; Cool.typ=None}, 
-				   $startpos(ide)); 
+     RPAREN { Dispatch { Cool.obj=(untyped_expr (Cool.Id { Cool.name="self"; Cool.typ=None}) $startpos(ide)); 
 			 Cool.dispatchType=None;
 			 Cool.id=ide.Cool.name; args } } 
   | obj = posexpr;  DOT;  

@@ -25,8 +25,10 @@ and lines_of_node posnode = match posnode with
 					  lines_of_posnode))
 			     @ [returnType] @ lines_of_posexpr defn)
 and lines_of_posexpr posexpr = match posexpr with
-  | (expr, p) -> ["#" ^ string_of_int p.Lexing.pos_lnum] @
-		   (lines_of_expr expr) @ [": _no_type"]
+  | {expr; pos; typ; } -> ["#" ^ string_of_int pos.Lexing.pos_lnum] @
+		   (lines_of_expr expr) @ [ ": " ^ match typ with 
+					    | None -> "_no_type" 
+					    | Some(x) ->  x ] 
 and cat_expr a b = (lines_of_posexpr a) @ (lines_of_posexpr b)
 
 and fieldprint {fieldname; fieldtype; init} = [fieldname; fieldtype;] @ (lines_of_posexpr init)
@@ -73,6 +75,7 @@ and lines_of_dispatch {obj; dispatchType; id; args } = match dispatchType with
 		(List.concat ( List.map args ~f:lines_of_posexpr )) @ [ ")" ] )
   | Some(typ) -> ["_static_dispatch" ] @ padded ( (lines_of_posexpr obj) @ [ typ; id; "("]  @
 		(List.concat ( List.map args ~f:lines_of_posexpr )) @ [ ")" ] )
+
 
 let tokenize_main () =
      for i = 1 to (Array.length Sys.argv - 1) do

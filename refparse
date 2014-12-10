@@ -1,2 +1,2 @@
 #! /bin/bash
-./cool/lib/.i686/lexer $1 | ./cool/lib/.i686/parser
+./cool/lib/.i686/lexer $1 | ./cool/lib/.i686/parser | ./cool/lib/.i686/semant

@@ -1,5 +1,7 @@
 open Core.Std;;
 
+type typename = TypeId of string | SelfType ;;
+
 type expr = 
   | Let of letrec
   | Assign of idrec * posexpr
@@ -29,12 +31,12 @@ and caserec = { test:posexpr; branches:branch list}
 and branch  = { branchname:string; branchtype:string;  branche:posexpr }
 and looprec =  { cond:posexpr; body:posexpr }
 and ifrec = { pred:posexpr; thenexp:posexpr; elseexp:posexpr }
-and letrec = { decls: field list; expr: posexpr }
+and letrec = { decls: field list; letbody: posexpr }
 and dispatchrec = {obj:posexpr; dispatchType:string option; id:string; args:posexpr list}
 and posexpr = { expr:expr;  
 		pos:Lexing.position; 
-		typ:string option }
-and idrec = {name:string; typ:string option}
+		exprtyp:typename option }
+and idrec = {name:string; idtyp:typename option}
 and node = 
 | Prog of posnode list
 | VarField of field
@@ -48,6 +50,6 @@ and node =
 		  features : posnode list }
  and methodrec = { methodname: string; formalparams: posnode list; 
 		 returnType: string; defn:posexpr};;
-
+ 
 (* the formal params is a list of formals with position
 but to print them we need them to be posnodes *)

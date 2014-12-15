@@ -25,10 +25,14 @@ and lines_of_node posnode = match posnode with
 					  lines_of_posnode))
 			     @ [returnType] @ lines_of_posexpr defn)
 and lines_of_posexpr posexpr = match posexpr with
-  | {expr; pos; typ; } -> ["#" ^ string_of_int pos.Lexing.pos_lnum] @
-		   (lines_of_expr expr) @ [ ": " ^ match typ with 
+  | {expr; pos; exprtyp; } -> ["#" ^ string_of_int pos.Lexing.pos_lnum] @
+		   (lines_of_expr expr) @ [ ": " ^ match exprtyp with 
 					    | None -> "_no_type" 
-					    | Some(x) ->  x ] 
+					    | Some(typ)
+					      ->  match typ with 
+						  | SelfType -> "SELF_TYPE"
+						  | TypeId(x) -> x
+ ] 
 and cat_expr a b = (lines_of_posexpr a) @ (lines_of_posexpr b)
 
 and fieldprint {fieldname; fieldtype; init} = [fieldname; fieldtype;] @ (lines_of_posexpr init)
@@ -36,8 +40,8 @@ and lines_of_branch {branchname; branchtype;  branche}
   = ["_branch"] @ padded([branchname; branchtype] @ (lines_of_posexpr branche))
 and lines_of_expr (expr : Cool.expr) = match expr with 
   | ExprError -> failwith "why print expr error?"
-  | Let {decls; expr} -> ["_let"]  @ padded ((List.concat (List.map decls ~f:fieldprint)) @ 
-(lines_of_posexpr expr))
+  | Let {decls; letbody} -> ["_let"]  @ padded ((List.concat (List.map decls ~f:fieldprint)) @ 
+(lines_of_posexpr letbody))
   | Block a -> ["_block"] @ padded (List.concat (List.map a ~f:lines_of_posexpr))
   | If {pred; thenexp; elseexp} -> ["_cond"] @ 
 				     padded (List.concat 
@@ -102,4 +106,48 @@ let parse_main () =
 			 lexbuf.lex_start_p lexbuf.lex_start_pos "top" ); ["Compilation halted due to lex and parse errors"] in
      Printf.printf "%s\n%!" (String.concat ~sep:"\n" (print_prg prg))
 
+
 let () = parse_main ();;
+
+
+(*
+in a + b. need to be able to lookup a's type, + signature and return *)
+(*value.
+
+b.foo(a), need to look up b's type. t(b)
+from the type, see if it or a parent has a method foo (the first),
+then see  what the params are. get their type then get a's type t(a) < t
+
+so, need to answer:
+t(b) 
+has_method(t(b)) (by type) get_method params.
+t(a)
+t(a) conforms to type x.
+then the return type is the ret type of the method.
+if the method has self type, then the reutnr method is the 
+type of b.
+
+b@a.foo(c)
+need to look up b's type
+check b < a.
+check if a or an ancestor have a method.
+so on. 
+
+
+1+ b.
+need to look up b's type.
+check it is int.
+
+
+if a then b else c. 
+need to compute type for a, see it is boolean.
+b need to compute type b
+c need to compute type c.
+then assign a type of 
+
+
+O(v)
+M(f) = (t0,...,tn)
+C for self type.
+conforms(t1, t2)
+ *)

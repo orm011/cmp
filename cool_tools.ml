@@ -9,15 +9,15 @@ let err_count () = !errcount;;
 let set_debug () = debug := true;;
 
 let untyped_expr (expr:expr) (pos:Lexing.position) = 
-		   { expr; pos; typ=None; }
+		   { expr; pos; exprtyp=None; }
 
 
-let rec deflatten { decls; expr } = 
-  let { pos; _ } = expr in 
+let rec deflatten { decls; letbody } = 
+  let { pos; _ } = letbody in 
   match decls with
   | [] -> failwith "empty let declaration list" 
-  | _ :: []  as singledecl -> {decls=singledecl; expr} 
-  | hd :: tl -> { decls=[hd]; expr=(untyped_expr (Let (deflatten { decls=tl; expr
+  | _ :: []  as singledecl -> {decls=singledecl; letbody} 
+  | hd :: tl -> { decls=[hd]; letbody=(untyped_expr (Let (deflatten { decls=tl; letbody
 						     }))  pos) }
 
 let debug_print str =

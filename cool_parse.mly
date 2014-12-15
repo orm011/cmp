@@ -118,8 +118,9 @@ within:
 
 expr:
   | LBRACE sub = brace RBRACE { Block (sub) }
-  | LET; decls = letdecls IN expr = within { Cool.Let (Cool_tools.deflatten {decls;
-							       expr}
+  | LET; decls = letdecls IN letbody = within { 
+					Cool.Let (Cool_tools.deflatten {decls;
+							       letbody}
 			     ) }
   | IF pred=posexpr THEN thenexp=posexpr ELSE elseexp
     = posexpr FI { Cool.If { pred; thenexp; elseexp } }
@@ -141,7 +142,7 @@ expr:
   | ISVOID; e = posexpr %prec ISVOID { Cool.IsVoid(e) } 
   | NEG; e = posexpr %prec NEG  { Cool.Neg(e) } 
   | ide = id; LPAREN; args = separated_list(COMMA, posexpr); 
-     RPAREN { Dispatch { Cool.obj=(untyped_expr (Cool.Id { Cool.name="self"; Cool.typ=None}) $startpos(ide)); 
+     RPAREN { Dispatch { Cool.obj=(untyped_expr (Cool.Id { name="self"; idtyp=None}) $startpos(ide)); 
 			 Cool.dispatchType=None;
 			 Cool.id=ide.Cool.name; args } } 
   | obj = posexpr;  DOT;  
@@ -158,7 +159,7 @@ expr:
   | name = id { Cool.Id name }
 
 id:
-  | name = OBJECTID { { Cool.name; Cool.typ=None }}
+  | name = OBJECTID { { name; idtyp=None }}
 branch:
   | branchname=OBJECTID COLON branchtype=TYPEID DARROW branche
     =posexpr { { branchname; branchtype; branche } }

@@ -129,7 +129,7 @@ module type ConformsType = sig
     (* queries *)
     val defined: typegraph -> TypeId.t -> bool
     val conforms: typegraph -> TypeId.t -> TypeId.t -> bool
-
+    val superU: typegraph ->  TypeId.t -> TypeId.t ->  TypeId.t
 end
 
 module Conforms : ConformsType = struct
@@ -187,15 +187,40 @@ module Conforms : ConformsType = struct
       if n1 = n2 then true else
 	   match Map.find gr n1 with
 	   | None -> false
-	   | Some (n1) -> conforms gr n1 n2
+	   | Some (n1) -> conforms gr n1 n2;;
 
+    let get_path gr t : TypeId.t list = 
+      let rec helper gr t acc = 
+	match TypeId.Map.find gr t with
+	  | None -> acc
+	  | Some (p) -> helper gr p (p :: acc)
+      in helper gr t [];;
+
+    let revlcprefix l1 l2 = 
+      let rec helper l1 l2 acc = 
+	match l1 with
+	| [] -> acc
+	| f1 :: rest1 -> 
+	   (match l2 with 
+	    | [] -> acc
+	    | f2 :: rest2 -> if f1 = f2 then helper rest1 rest2 (f1 :: acc) else acc)
+      in helper l1 l2 []
+
+    (* what happens if the input type was never added to the graph? *)
+    let superU (gr: typegraph) (t1:  TypeId.t) (t2: TypeId.t) : TypeId.t = 
+      let p1 = get_path gr t1 in
+      let p2 = get_path gr t2 in
+      let rev = revlcprefix p1 p2
+      in match rev with 
+	 | [] -> failwith "all prefixes have an obj, illegal input?"
+	 | h ::  _ -> h
+      
     let defined (gr:typegraph) t = match Map.find gr t with 
       | None -> false
       | Some(_) -> true
 
 end
 
-(* todo: make sure no SELF_TYPE is used in classes *)
 let get_class_graph (prog : node) 
     : (Conforms.typegraph, string) Result.t = 
   let add_class gr node = match node with  
@@ -226,11 +251,6 @@ let get_class_graph (prog : node)
      | Ok (g) -> g
      | Error(s) -> failwith s) in 
   Conforms.finish almost
-
-
-   
-  
-
 
 (* maps needed:
 O(v)

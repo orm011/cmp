@@ -2,6 +2,7 @@
 open Lexing
 open Core.Std
 open Cool_parse
+open Cool
 
 let next_line lexbuf =
   let pos = lexbuf.lex_curr_p in
@@ -124,7 +125,7 @@ and read =
 |    "*)"       { ERROR("Unmatched *)") }
 |    intconst 	{ INT_CONST(Lexing.lexeme lexbuf) }
 |    objid 	{ OBJECTID(Lexing.lexeme lexbuf) }
-|    typeid 	{ TYPEID(Lexing.lexeme lexbuf) }
+|    typeid 	{ TYPEID( Cool.TypeId.tvar_of_string (Lexing.lexeme lexbuf) ) }
 |    '"' 	{ parse_string false (Buffer.create 16) lexbuf }
 |    '\n'	{ next_line lexbuf; read lexbuf }
 |    eof 	{ lexbuf.lex_eof_reached <- true; EOF }
@@ -199,7 +200,7 @@ let string_of_tok  = function
      | INT_CONST(s) -> "INT_CONST " ^ s
      | OBJECTID(s)  -> "OBJECTID " ^ s
      | STR_CONST(s)  -> "STR_CONST \"" ^ (print_escaped_string s) ^ "\""
-     | TYPEID(s) -> "TYPEID " ^  s
+     | TYPEID(t) -> "TYPEID " ^  (TypeId.string_of_tvar t)
      | ERROR(s) -> "ERROR \"" ^ (print_escaped_string s) ^ "\""
 
 (* convenience method to shorten return type *)

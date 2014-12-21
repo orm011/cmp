@@ -1,7 +1,16 @@
+%{
+    open Cool;;
+    open Cool_tools;;
+    let obj = TypeId.obj;;
+    type tvar = Cool.TypeId.tvar;;
+(*      set_debug ();;*)
+%}
+
 %token ASSIGN AT CASE CLASS COLON COMMA DARROW DIV DOT ELSE EOF EQ
        ESAC FI IF IN INHERITS ISVOID LBRACE LE LET LOOP LPAREN LT OF
        MINUS MULT NEG NEW NOT PLUS POOL RBRACE RPAREN SEMI THEN WHILE 
-%token <string> INT_CONST OBJECTID  STR_CONST  TYPEID ERROR 
+%token <string> INT_CONST OBJECTID  STR_CONST   ERROR 
+%token <Cool.TypeId.tvar> TYPEID
 %token <bool>  BOOL_CONST 
 
 %nonassoc LET
@@ -14,12 +23,6 @@
 %left NEG
 %left AT
 %left DOT
-
-%{
-    open Cool;;
-    open Cool_tools;;
-(*      set_debug ();;*)
-%}
 
 (*
 error recovery:
@@ -40,7 +43,10 @@ error recovery:
 
 %%
 program:
-  | classes = classlists; EOF { (Cool.Prog(classes), $endpos(classes)) }
+  | classes = classlists; EOF { (Cool.Prog(classes), $endpos(classes)
+			      ) }
+  | ERROR { (Cool.ParseError, $endpos)} (* to shush a compiler *)
+				(* warning *)
 
 classlists:
   | rev = revclasslists { List.rev rev }
@@ -58,9 +64,9 @@ revclasslists:
 singleclass:
   | classname = TYPEID INHERITS inherits = TYPEID LBRACE features
     = classfield* RBRACE SEMI
-	     { (Cool.Class { classname; inherits; features }, $endpos)  }
+	     { (Cool.Class { classname;  inherits; features }, $endpos)  }
   | classname = TYPEID LBRACE features = classfield* RBRACE SEMI
-	     { (Cool.Class { classname; inherits="Object"; features }, $endpos) }
+	     { (Cool.Class { classname; inherits=TypeId.obj; features }, $endpos) }
 
 
 classfield:
@@ -82,9 +88,9 @@ posexpr:
 
 vardec:
   | fieldname = OBJECTID COLON fieldtype = TYPEID ASSIGN init=posexpr; {
-		     { Cool.fieldname; Cool.fieldtype; Cool.init=init } }
-  | fieldname = OBJECTID COLON fieldtype = TYPEID { { fieldname; fieldtype;
-						    init=(untyped_expr NoExpr $endpos) }}
+		     { fieldname; fieldtype; init } }
+  | fieldname = OBJECTID COLON fieldtype
+    = TYPEID { { fieldname; fieldtype;  init=(untyped_expr NoExpr $endpos) }}
 formal:
   | id = OBJECTID COLON typ = TYPEID { (Cool.Formal(id, typ), $endpos) }
 
@@ -92,11 +98,11 @@ formal:
 revdecls:
   | dec = vardec { dec :: [] }
   | rest = revdecls COMMA dec = vardec { dec :: rest }
-  | e = error { e; syntax_error $startpos(e) $startofs(e) "revdecls"; {fieldname="dummy"; fieldtype ="Dummy"; init=( untyped_expr  ExprError $endpos  )} :: []  }
+  | e = error { e; syntax_error $startpos(e) $startofs(e) "revdecls"; {fieldname="dummy"; fieldtype =obj; init=( untyped_expr  ExprError $endpos  )} :: []  }
   | rest = revdecls COMMA e = error 
 				{ e; syntax_error $startpos(e)
 				     $startofs(e) "many"; 
-				  {fieldname="dummy"; fieldtype ="Dummy"; init=(untyped_expr ExprError $endpos)} :: []  }
+				  {fieldname="dummy"; fieldtype =obj; init=(untyped_expr ExprError $endpos)} :: []  }
   | error EOF { failwith "save me" }
 
 letdecls:

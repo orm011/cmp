@@ -1,12 +1,19 @@
 open Core.Std;;
 
-module TypeId : sig
-    type t
-    type tvar = Absolute of t | SelfType
-    val tvar_of_string: string -> tvar
-    val string_of_tvar: tvar -> string
-    include Comparable.S with type t := t
-    val obj : tvar
+module TypeId = struct
+  module T = struct
+      type t = string with sexp, compare (*invariant, never equal to SELF_TYPE *)
+  end
+  include T
+
+  type tvar  = Absolute of t | SelfType with sexp, compare
+  let tvar_of_string st = if st = "SELF_TYPE"  then SelfType else Absolute st
+  let string_of_tvar = function 
+    | SelfType -> "SELF_TYPE"
+    | Absolute(t) -> t
+  let obj = tvar_of_string("Object")
+ 
+  include Comparable.Make(T)
 end
 
 type typename = TypeId.tvar
@@ -60,5 +67,3 @@ and node =
  and methodrec = { methodname: string; formalparams: posnode list;
 		 returnType: typename; defn:posexpr};;
  
-(* the formal params is a list of formals with position
-but to print them we need them to be posnodes *)

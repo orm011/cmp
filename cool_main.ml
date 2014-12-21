@@ -79,34 +79,6 @@ and lines_of_dispatch {obj; dispatchType; id; args } = match dispatchType with
                                                   (List.concat ( List.map args ~f:lines_of_posexpr )) @ [ ")" ] )
 
 
-let tokenize_main () =
-  for i = 1 to (Array.length Sys.argv - 1) do
-    let infile = Sys.argv.(i) in
-    let inch = In_channel.create infile in
-    Printf.fprintf stdout "#name \"%s\"\n" infile;
-    tokenize_from_to inch stdout;
-    In_channel.close inch
-  done
-
-let parse_main () = 
-  let infile = Sys.argv.(1) in 
-  let inch = In_channel.create infile in
-  let lexbuf = Lexing.from_channel inch in
-  lexbuf.Lexing.lex_curr_p <- { lexbuf.lex_start_p with pos_fname = infile };
-  let prg = try Some(Cool_parse.program Cool_lexer.read lexbuf)
-    with _ -> None in 
-  let print_prg prg  : string list =  
-    if Cool_tools.err_count () > 0
-    then ["Compilation halted due to lex and parse errors"] 
-    else match prg  with
-      | Some(p) -> lines_of_posnode p
-      | None -> (Cool_tools.syntax_error
-                   lexbuf.lex_start_p lexbuf.lex_start_pos "top" ); ["Compilation halted due to lex and parse errors"] in
-  Printf.printf "%s\n%!" (String.concat ~sep:"\n" (print_prg prg))
-
-let () = parse_main ();;
-
-
 (*
 well formed type definition:
 -every type conforms to object
@@ -252,9 +224,36 @@ let get_class_graph (prog : node)
       | Error(s) -> failwith s) in 
   Conforms.finish almost
 
+
 (* maps needed:
    O(v)
    M(f) = (t0,...,tn)
    C for self type.
-   conforms(t1, t2)
 *)
+
+let tokenize_main () =
+  for i = 1 to (Array.length Sys.argv - 1) do
+    let infile = Sys.argv.(i) in
+    let inch = In_channel.create infile in
+    Printf.fprintf stdout "#name \"%s\"\n" infile;
+    tokenize_from_to inch stdout;
+    In_channel.close inch
+  done
+
+let parse_main () = 
+  let infile = Sys.argv.(1) in 
+  let inch = In_channel.create infile in
+  let lexbuf = Lexing.from_channel inch in
+  lexbuf.Lexing.lex_curr_p <- { lexbuf.lex_start_p with pos_fname = infile };
+  let prg = try Some(Cool_parse.program Cool_lexer.read lexbuf)
+    with _ -> None in 
+  let print_prg prg  : string list =  
+    if Cool_tools.err_count () > 0
+    then ["Compilation halted due to lex and parse errors"] 
+    else match prg  with
+      | Some(p) -> lines_of_posnode p
+      | None -> (Cool_tools.syntax_error
+                   lexbuf.lex_start_p lexbuf.lex_start_pos "top" ); ["Compilation halted due to lex and parse errors"] in
+  Printf.printf "%s\n%!" (String.concat ~sep:"\n" (print_prg prg))
+
+let () = parse_main ();;

@@ -18,9 +18,9 @@ and lines_of_node posnode = match posnode with
     ["_class"; pad (TypeId.string_of_tvar classname); pad (TypeId.string_of_tvar inherits); pad "\"" ^ pos.Lexing.pos_fname ^ "\""] @
     padded (["("] @ (List.concat (List.map ~f:lines_of_posnode  features)) @ [")"])
   | (VarField (fieldrec), _) -> ["_attr";] @ padded (fieldprint fieldrec)
-  | (Formal (a,b),_) -> ["_formal"] @ (padded  [a; TypeId.string_of_tvar b])
+  | (Formal (a,b),_) -> ["_formal"] @ (padded  [ObjId.string_of_id a; TypeId.string_of_tvar b])
   | (Method { methodname; formalparams; returnType; defn }, _) ->
-    ["_method"] @ padded ([ methodname; ] @ 
+    ["_method"] @ padded ([ ObjId.string_of_id methodname; ] @ 
                           (List.concat (List.map formalparams ~f:
                                           lines_of_posnode))
                           @ [TypeId.string_of_tvar returnType] @ lines_of_posexpr defn)
@@ -33,9 +33,9 @@ and lines_of_posexpr posexpr = match posexpr with
 and cat_expr a b = (lines_of_posexpr a) @ (lines_of_posexpr b)
 
 and fieldprint {fieldname; fieldtype; init}
-  = [fieldname; TypeId.string_of_tvar fieldtype;] @ (lines_of_posexpr init)
+  = [ObjId.string_of_id fieldname; TypeId.string_of_tvar fieldtype;] @ (lines_of_posexpr init)
 and lines_of_branch {branchname; branchtype;  branche}
-  = ["_branch"] @ padded([branchname; TypeId.string_of_tvar branchtype] @ (lines_of_posexpr branche))
+  = ["_branch"] @ padded([ObjId.string_of_id branchname; TypeId.string_of_tvar branchtype] @ (lines_of_posexpr branche))
 and lines_of_expr (expr : Cool.expr) = match expr with 
   | ExprError -> failwith "why print expr error?"
   | Let {decls; letbody} -> ["_let"]  @ padded ((List.concat (List.map decls ~f:fieldprint)) @ 
@@ -55,7 +55,7 @@ and lines_of_expr (expr : Cool.expr) = match expr with
                                      (List.map  
                                         branches  
                                         ~f:lines_of_branch)))
-  | Assign(a,b) -> ["_assign"] @ padded ( [a.name]  @ (lines_of_posexpr b))
+  | Assign(a,b) -> ["_assign"] @ padded ( [ObjId.string_of_id a.name]  @ (lines_of_posexpr b))
   | Comp(a) -> ["_comp" ] @ padded (lines_of_posexpr a)
   | Lequal(a,b) -> [ "_lte" ] @ padded (cat_expr a b)
   | Eq(a,b) -> [ "_eq" ] @ padded (cat_expr a b)
@@ -67,15 +67,15 @@ and lines_of_expr (expr : Cool.expr) = match expr with
   | Dispatch(a) -> lines_of_dispatch a
   | Neg(a) -> ["_neg"] @ padded (lines_of_posexpr a)
   | IsVoid(a) -> ["_isvoid"] @ padded (lines_of_posexpr a)
-  | Id(i) -> [ "_object"; ] @ padded [i.name]
+  | Id(i) -> [ "_object"; ] @ padded [ObjId.string_of_id i.name]
   | Int(str) ->  [ "_int"] @ padded [str]
   | Str(str) -> [ "_string" ] @ padded ["\"" ^ (Cool_lexer.print_escaped_string str) ^ "\""]
   | Bool(b) -> [ "_bool" ] @ padded [if b then "1" else "0" ]
   | NoExpr -> ["_no_expr"]
 and lines_of_dispatch {obj; dispatchType; id; args } = match dispatchType with
-  | None -> ["_dispatch"]  @ padded  ( ( lines_of_posexpr obj ) @ [ id; "("  ] @ 
+  | None -> ["_dispatch"]  @ padded  ( ( lines_of_posexpr obj ) @ [ ObjId.string_of_id id; "("  ] @ 
                                        (List.concat ( List.map args ~f:lines_of_posexpr )) @ [ ")" ] )
-  | Some(typ) -> ["_static_dispatch" ] @ padded ( (lines_of_posexpr obj) @ [ TypeId.string_of_tvar typ; id; "("]  @
+  | Some(typ) -> ["_static_dispatch" ] @ padded ( (lines_of_posexpr obj) @ [ TypeId.string_of_tvar typ; ObjId.string_of_id  id; "("]  @
                                                   (List.concat ( List.map args ~f:lines_of_posexpr )) @ [ ")" ] )
 
 
@@ -225,6 +225,12 @@ let get_class_graph (prog : node)
   Conforms.finish almost
 
 
+module type ObjTableT = sig
+    type t
+    val add: t -> ObjId.t * typename -> t
+    val is_defined: ObjId.t -> bool
+end
+
 (* maps needed:
    O(v)
    M(f) = (t0,...,tn)
@@ -251,7 +257,12 @@ let parse_main () =
     if Cool_tools.err_count () > 0
     then ["Compilation halted due to lex and parse errors"] 
     else match prg  with
-      | Some(p) -> lines_of_posnode p
+      | Some(p) ->   let (prgnopos, _) = p in 
+		     let gr = get_class_graph prgnopos in 
+		     ignore (match gr with 
+			    | Error(s) -> failwith s 
+			    | Ok (_) -> ());
+		     lines_of_posnode p
       | None -> (Cool_tools.syntax_error
                    lexbuf.lex_start_p lexbuf.lex_start_pos "top" ); ["Compilation halted due to lex and parse errors"] in
   Printf.printf "%s\n%!" (String.concat ~sep:"\n" (print_prg prg))

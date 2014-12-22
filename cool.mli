@@ -9,6 +9,13 @@ module TypeId : sig
     val obj : tvar
 end
 
+module ObjId : sig
+    type t
+    type id = Name of t | Self | Dummy 
+    val id_of_string: string -> id
+    val string_of_id: id -> string
+end
+
 type typename = TypeId.tvar
 
 type expr =
@@ -37,27 +44,27 @@ type expr =
   | NoExpr
   | ExprError
 and caserec = { test:posexpr; branches:branch list}
-and branch  = { branchname:string; branchtype:typename;  branche:posexpr }
+and branch  = { branchname:ObjId.id; branchtype:typename;  branche:posexpr }
 and looprec =  { cond:posexpr; body:posexpr }
 and ifrec = { pred:posexpr; thenexp:posexpr; elseexp:posexpr }
 and letrec = { decls: field list; letbody: posexpr }
-and dispatchrec = {obj:posexpr; dispatchType:typename option; id:string; args:posexpr list}
+and dispatchrec = {obj:posexpr; dispatchType:typename option; id:ObjId.id; args:posexpr list}
 and posexpr = { expr:expr;
 		pos:Lexing.position;
 		exprtyp:typename option }
-and idrec = {name:string; idtyp:typename option}
+and idrec = {name:ObjId.id; idtyp:typename option}
 and node =
 | Prog of posnode list
 | VarField of field
 | Class of classrec
 | Method of methodrec
-| Formal of string * typename
+| Formal of ObjId.id * typename
 | ParseError
  and posnode = node * Lexing.position
- and field = { fieldname : string; fieldtype : typename; init : posexpr }
+ and field = { fieldname : ObjId.id; fieldtype : typename; init : posexpr }
  and classrec = { classname : typename; inherits : typename;
 		  features : posnode list }
- and methodrec = { methodname: string; formalparams: posnode list;
+ and methodrec = { methodname: ObjId.id; formalparams: posnode list;
 		 returnType: typename; defn:posexpr};;
  
 (* the formal params is a list of formals with position

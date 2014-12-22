@@ -124,7 +124,7 @@ and read =
 |    "(*" 	{ parse_multi_line_comment 1 lexbuf }
 |    "*)"       { ERROR("Unmatched *)") }
 |    intconst 	{ INT_CONST(Lexing.lexeme lexbuf) }
-|    objid 	{ OBJECTID(Lexing.lexeme lexbuf) }
+|    objid 	{ OBJECTID(Cool.ObjId.id_of_string (Lexing.lexeme lexbuf)) }
 |    typeid 	{ TYPEID( Cool.TypeId.tvar_of_string (Lexing.lexeme lexbuf) ) }
 |    '"' 	{ parse_string false (Buffer.create 16) lexbuf }
 |    '\n'	{ next_line lexbuf; read lexbuf }
@@ -198,7 +198,7 @@ let string_of_tok  = function
      | WHILE -> "WHILE"
      | BOOL_CONST(b) -> "BOOL_CONST " ^ string_of_bool(b)
      | INT_CONST(s) -> "INT_CONST " ^ s
-     | OBJECTID(s)  -> "OBJECTID " ^ s
+     | OBJECTID(s)  -> "OBJECTID " ^ (ObjId.string_of_id s)
      | STR_CONST(s)  -> "STR_CONST \"" ^ (print_escaped_string s) ^ "\""
      | TYPEID(t) -> "TYPEID " ^  (TypeId.string_of_tvar t)
      | ERROR(s) -> "ERROR \"" ^ (print_escaped_string s) ^ "\""

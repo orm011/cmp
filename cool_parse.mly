@@ -9,7 +9,8 @@
 %token ASSIGN AT CASE CLASS COLON COMMA DARROW DIV DOT ELSE EOF EQ
        ESAC FI IF IN INHERITS ISVOID LBRACE LE LET LOOP LPAREN LT OF
        MINUS MULT NEG NEW NOT PLUS POOL RBRACE RPAREN SEMI THEN WHILE 
-%token <string> INT_CONST OBJECTID  STR_CONST   ERROR 
+%token <string> INT_CONST  STR_CONST   ERROR 
+%token <Cool.ObjId.id>  OBJECTID
 %token <Cool.TypeId.tvar> TYPEID
 %token <bool>  BOOL_CONST 
 
@@ -98,11 +99,11 @@ formal:
 revdecls:
   | dec = vardec { dec :: [] }
   | rest = revdecls COMMA dec = vardec { dec :: rest }
-  | e = error { e; syntax_error $startpos(e) $startofs(e) "revdecls"; {fieldname="dummy"; fieldtype =obj; init=( untyped_expr  ExprError $endpos  )} :: []  }
+  | e = error { e; syntax_error $startpos(e) $startofs(e) "revdecls"; {fieldname=ObjId.Dummy; fieldtype =obj; init=( untyped_expr  ExprError $endpos  )} :: []  }
   | rest = revdecls COMMA e = error 
 				{ e; syntax_error $startpos(e)
 				     $startofs(e) "many"; 
-				  {fieldname="dummy"; fieldtype =obj; init=(untyped_expr ExprError $endpos)} :: []  }
+				  {fieldname=ObjId.Dummy; fieldtype=obj; init=(untyped_expr ExprError $endpos)} :: []  }
   | error EOF { failwith "save me" }
 
 letdecls:
@@ -148,7 +149,7 @@ expr:
   | ISVOID; e = posexpr %prec ISVOID { Cool.IsVoid(e) } 
   | NEG; e = posexpr %prec NEG  { Cool.Neg(e) } 
   | ide = id; LPAREN; args = separated_list(COMMA, posexpr); 
-     RPAREN { Dispatch { Cool.obj=(untyped_expr (Cool.Id { name="self"; idtyp=None}) $startpos(ide)); 
+     RPAREN { Dispatch { Cool.obj=(untyped_expr (Cool.Id { name=ObjId.Self; idtyp=None}) $startpos(ide)); 
 			 Cool.dispatchType=None;
 			 Cool.id=ide.Cool.name; args } } 
   | obj = posexpr;  DOT;  

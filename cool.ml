@@ -16,6 +16,32 @@ module TypeId = struct
   include Comparable.Make(T)
 end
 
+module ObjId = struct
+    module T = struct
+	type t = string with sexp, compare
+    end
+    include T
+    include Comparable.Make(T)
+    type id = Name of t | Self | Dummy
+    let id_of_string st = if st = "self" then Self else Name st
+    let string_of_id v = match v with
+      | Self -> "self"
+      | Name(t) -> t
+      | Dummy -> failwith "dont print tree with errors"
+end
+
+(* module MethodId = struct *)
+(*     module T = struct *)
+(* 	type t = string with sexp, compare *)
+(*       end *)
+(*     include T *)
+(*     include Comparable.Make(T) *)
+(*     let mid_of_string st = st *)
+(*     let string_of_mid m = m *)
+(*   end *)
+
+
+
 type typename = TypeId.tvar
 
 type expr =
@@ -44,26 +70,26 @@ type expr =
   | NoExpr
   | ExprError
 and caserec = { test:posexpr; branches:branch list}
-and branch  = { branchname:string; branchtype:typename;  branche:posexpr }
+and branch  = { branchname:ObjId.id; branchtype:typename;  branche:posexpr }
 and looprec =  { cond:posexpr; body:posexpr }
 and ifrec = { pred:posexpr; thenexp:posexpr; elseexp:posexpr }
 and letrec = { decls: field list; letbody: posexpr }
-and dispatchrec = {obj:posexpr; dispatchType:typename option; id:string; args:posexpr list}
+and dispatchrec = {obj:posexpr; dispatchType:typename option; id:ObjId.id; args:posexpr list}
 and posexpr = { expr:expr;
 		pos:Lexing.position;
 		exprtyp:typename option }
-and idrec = {name:string; idtyp:typename option}
+and idrec = {name:ObjId.id;  idtyp:typename option}
 and node =
 | Prog of posnode list
 | VarField of field
 | Class of classrec
 | Method of methodrec
-| Formal of string * typename
+| Formal of ObjId.id * typename
 | ParseError
  and posnode = node * Lexing.position
- and field = { fieldname : string; fieldtype : typename; init : posexpr }
+ and field = { fieldname : ObjId.id; fieldtype : typename; init : posexpr }
  and classrec = { classname : typename; inherits : typename;
 		  features : posnode list }
- and methodrec = { methodname: string; formalparams: posnode list;
+ and methodrec = { methodname: ObjId.id; formalparams: posnode list;
 		 returnType: typename; defn:posexpr};;
  

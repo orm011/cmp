@@ -51,7 +51,7 @@ program:
 
 classlists:
   | rev = revclasslists { List.rev rev }
-
+ 
 revclasslists:
   | CLASS c = singleclass { c :: [] }
   | rest = revclasslists CLASS cl = singleclass  { cl :: rest }
@@ -70,15 +70,15 @@ singleclass:
 	     { (Cool.Class { classname; inherits=TypeId.obj; features }, $endpos) }
 
 
+methodid:
+  | nam = OBJECTID { MethodId.t_of_objid nam }
+
 classfield:
   | field = vardec SEMI { (Cool.VarField field, $endpos) }
-  | methodname  = OBJECTID; LPAREN; formalparams = separated_list(COMMA, formal);
+  | methodname  = methodid; LPAREN; formalparams = separated_list(COMMA, formal);
     RPAREN COLON returnType = TYPEID LBRACE defn
-		       = posexpr RBRACE; SEMI;  { (Cool.Method { methodname; 
-							 formalparams;
-							 returnType;
-							 defn }
-						  , $endpos) }
+		       = posexpr RBRACE; SEMI
+    ;  { (Cool.Method { methodname; formalparams; returnType; defn },  $endpos) }
   | error SEMI {
 	    syntax_error $startpos $startofs "classfield";
 			      (ParseError, $endpos) }
@@ -148,17 +148,17 @@ expr:
   | e1 = posexpr; DIV; e2 = posexpr %prec DIV { Cool.Div(e1, e2) } 
   | ISVOID; e = posexpr %prec ISVOID { Cool.IsVoid(e) } 
   | NEG; e = posexpr %prec NEG  { Cool.Neg(e) } 
-  | ide = id; LPAREN; args = separated_list(COMMA, posexpr); 
-     RPAREN { Dispatch { Cool.obj=(untyped_expr (Cool.Id { name=ObjId.Self; idtyp=None}) $startpos(ide)); 
+  | id = methodid; LPAREN; args = separated_list(COMMA, posexpr); 
+    RPAREN { Dispatch { Cool.obj=(untyped_expr (Cool.Id { name=ObjId.Self; idtyp=None}) $startpos(id)); 
 			 Cool.dispatchType=None;
-			 Cool.id=ide.Cool.name; args } } 
+			 Cool.id; args } } 
   | obj = posexpr;  DOT;  
      ide = id; LPAREN; args = separated_list(COMMA, posexpr); 
      RPAREN { Dispatch { Cool.obj; Cool.dispatchType=None;
-				    Cool.id=ide.Cool.name; args } } 
+				    Cool.id=(MethodId.t_of_objid ide.Cool.name); args } } 
   | obj = posexpr AT distype = TYPEID DOT ide = id; LPAREN; 
     args = separated_list(COMMA, posexpr) RPAREN
-	{ Dispatch { Cool.obj; Cool.dispatchType=Some(distype); Cool.id=ide.Cool.name; args } } 
+	{ Dispatch { Cool.obj; Cool.dispatchType=Some(distype); Cool.id=(MethodId.t_of_objid ide.Cool.name); args } } 
   | LPAREN; e = expr; RPAREN { e }
   | int = INT_CONST { Cool.Int(int) } 
   | str = STR_CONST { Cool.Str(str) } 

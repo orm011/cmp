@@ -16,6 +16,12 @@ module ObjId : sig
     val string_of_id: id -> string
 end
 
+module MethodId : sig
+    type t 
+    val t_of_objid: ObjId.id -> t
+    val string_of_t: t -> string
+end
+
 type typename = TypeId.tvar
 
 type expr =
@@ -48,7 +54,7 @@ and branch  = { branchname:ObjId.id; branchtype:typename;  branche:posexpr }
 and looprec =  { cond:posexpr; body:posexpr }
 and ifrec = { pred:posexpr; thenexp:posexpr; elseexp:posexpr }
 and letrec = { decls: field list; letbody: posexpr }
-and dispatchrec = {obj:posexpr; dispatchType:typename option; id:ObjId.id; args:posexpr list}
+and dispatchrec = {obj:posexpr; dispatchType:typename option; id:MethodId.t; args:posexpr list}
 and posexpr = { expr:expr;
 		pos:Lexing.position;
 		exprtyp:typename option }
@@ -64,7 +70,7 @@ and node =
  and field = { fieldname : ObjId.id; fieldtype : typename; init : posexpr }
  and classrec = { classname : typename; inherits : typename;
 		  features : posnode list }
- and methodrec = { methodname: ObjId.id; formalparams: posnode list;
+ and methodrec = { methodname: MethodId.t; formalparams: posnode list;
 		 returnType: typename; defn:posexpr};;
  
 (* the formal params is a list of formals with position

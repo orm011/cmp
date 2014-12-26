@@ -20,7 +20,7 @@ and lines_of_node posnode = match posnode with
   | (VarField (fieldrec), _) -> ["_attr";] @ padded (fieldprint fieldrec)
   | (Formal (a,b),_) -> ["_formal"] @ (padded  [ObjId.string_of_id a; TypeId.string_of_tvar b])
   | (Method { methodname; formalparams; returnType; defn }, _) ->
-    ["_method"] @ padded ([ ObjId.string_of_id methodname; ] @ 
+    ["_method"] @ padded ([ MethodId.string_of_t methodname; ] @ 
                           (List.concat (List.map formalparams ~f:
                                           lines_of_posnode))
                           @ [TypeId.string_of_tvar returnType] @ lines_of_posexpr defn)
@@ -73,9 +73,9 @@ and lines_of_expr (expr : Cool.expr) = match expr with
   | Bool(b) -> [ "_bool" ] @ padded [if b then "1" else "0" ]
   | NoExpr -> ["_no_expr"]
 and lines_of_dispatch {obj; dispatchType; id; args } = match dispatchType with
-  | None -> ["_dispatch"]  @ padded  ( ( lines_of_posexpr obj ) @ [ ObjId.string_of_id id; "("  ] @ 
+  | None -> ["_dispatch"]  @ padded  ( ( lines_of_posexpr obj ) @ [ MethodId.string_of_t id; "("  ] @ 
                                        (List.concat ( List.map args ~f:lines_of_posexpr )) @ [ ")" ] )
-  | Some(typ) -> ["_static_dispatch" ] @ padded ( (lines_of_posexpr obj) @ [ TypeId.string_of_tvar typ; ObjId.string_of_id  id; "("]  @
+  | Some(typ) -> ["_static_dispatch" ] @ padded ( (lines_of_posexpr obj) @ [ TypeId.string_of_tvar typ; MethodId.string_of_t  id; "("]  @
                                                   (List.concat ( List.map args ~f:lines_of_posexpr )) @ [ ")" ] )
 
 
@@ -227,8 +227,14 @@ let get_class_graph (prog : node)
 
 module type ObjTableT = sig
     type t
-    val add: t -> ObjId.t * typename -> t
-    val is_defined: ObjId.t -> bool
+    val add_obj: t -> ObjId.t * typename -> t
+    val obj_defined: ObjId.t -> bool
+end
+
+module type MethodTableT = sig
+    type t
+    val add_meth: t -> methodrec -> t
+    val meth_defined: ObjId.t -> bool
 end
 
 (* maps needed:

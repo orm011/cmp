@@ -30,6 +30,18 @@ module ObjId = struct
       | Dummy -> failwith "dont print tree with errors"
 end
 
+module MethodId = struct
+    module T = struct 
+	type t = string with sexp, compare
+      end
+    include T
+    include Comparable.Make(T)
+    let t_of_objid = function 
+      | ObjId.Name(t) -> t
+      | _ -> failwith "method should not have name self or dummy"
+    let string_of_t t = t 
+  end
+
 (* module MethodId = struct *)
 (*     module T = struct *)
 (* 	type t = string with sexp, compare *)
@@ -74,7 +86,7 @@ and branch  = { branchname:ObjId.id; branchtype:typename;  branche:posexpr }
 and looprec =  { cond:posexpr; body:posexpr }
 and ifrec = { pred:posexpr; thenexp:posexpr; elseexp:posexpr }
 and letrec = { decls: field list; letbody: posexpr }
-and dispatchrec = {obj:posexpr; dispatchType:typename option; id:ObjId.id; args:posexpr list}
+and dispatchrec = {obj:posexpr; dispatchType:typename option; id:MethodId.t; args:posexpr list}
 and posexpr = { expr:expr;
 		pos:Lexing.position;
 		exprtyp:typename option }
@@ -90,6 +102,6 @@ and node =
  and field = { fieldname : ObjId.id; fieldtype : typename; init : posexpr }
  and classrec = { classname : typename; inherits : typename;
 		  features : posnode list }
- and methodrec = { methodname: ObjId.id; formalparams: posnode list;
+ and methodrec = { methodname: MethodId.t; formalparams: posnode list;
 		 returnType: typename; defn:posexpr};;
  

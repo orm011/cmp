@@ -227,14 +227,48 @@ let get_class_graph (prog : node)
 
 module type ObjTableT = sig
     type t
-    val add_obj: t -> ObjId.t * typename -> t
-    val obj_defined: ObjId.t -> bool
+    val add_obj: t -> ObjId.t * TypeId.t -> t
+    val get_obj: t -> ObjId.t -> TypeId.t option
+end
+
+module ObjTable : ObjTableT = struct 
+    type t = TypeId.t ObjId.Map.t
+    let add_obj t (id, typ) = 
+      ObjId.Map.add t ~key:id ~data:typ
+    let get_obj t id = 
+      ObjId.Map.find t id
 end
 
 module type MethodTableT = sig
     type t
-    val add_meth: t -> methodrec -> t
-    val meth_defined: ObjId.t -> bool
+    type methsig = { params: typename list; ret: typename }
+    val add_meth: t -> TypeId.t -> methodrec -> t
+(*    val meth_defined: ObjId.t -> bool*)
+(*    val meth_sig: t -> typename * posnode -> methsig*)
+end
+			     
+module MethodTable : MethodTableT = struct
+    module FullId = 
+      Comparable.Make
+	(
+	  struct 
+	    type t = TypeId.t * MethodId.t with sexp, compare
+	  end
+	)
+
+    type methsig = { params: typename list; ret: typename }
+				   
+    type t = methsig FullId.Map.t
+		     
+    let methsig_of_formal {methodname; formalparams; returnType; _} = 
+      let nf = List.map formalparams
+			~f:(function 
+			| (Formal (_, typ), _) -> typ
+			| _ -> failwith "formal expected")
+      in  { params=nf; ret=returnType }
+
+    let add_meth m t ({ methodname; _ } as mrec) = 
+      FullId.Map.add m ~key:(t, methodname) ~data:(methsig_of_formal mrec)
 end
 
 (* maps needed:

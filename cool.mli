@@ -1,7 +1,7 @@
 open Core.Std;;
 
 module TypeId : sig
-    type t
+    type t with sexp
     type tvar = Absolute of t | SelfType
     val tvar_of_string: string -> tvar
     val string_of_tvar: tvar -> string
@@ -10,14 +10,16 @@ module TypeId : sig
 end
 
 module ObjId : sig
-    type t
+    type t with sexp
+    include Comparable.S with type t := t
     type id = Name of t | Self | Dummy 
     val id_of_string: string -> id
     val string_of_id: id -> string
 end
 
 module MethodId : sig
-    type t 
+    type t with sexp
+    include Comparable.S with type t:= t
     val t_of_objid: ObjId.id -> t
     val string_of_t: t -> string
 end

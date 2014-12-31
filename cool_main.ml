@@ -243,8 +243,7 @@ module type MethodTableT = sig
     type t
     type methsig = { params: typename list; ret: typename }
     val add_meth: t -> TypeId.t -> methodrec -> t
-(*    val meth_defined: ObjId.t -> bool*)
-(*    val meth_sig: t -> typename * posnode -> methsig*)
+    val get_meth: t -> TypeId.t * MethodId.t -> methsig option
 end
 			     
 module MethodTable : MethodTableT = struct
@@ -269,13 +268,37 @@ module MethodTable : MethodTableT = struct
 
     let add_meth m t ({ methodname; _ } as mrec) = 
       FullId.Map.add m ~key:(t, methodname) ~data:(methsig_of_formal mrec)
+
+    let get_meth m pr = FullId.Map.find m pr 
 end
 
-(* maps needed:
+(* 
+context needed
    O(v)
-   M(f) = (t0,...,tn)
-   C for self type.
+   M(C, f) = (t0,...,tn, ret)
+   C to resolve self type. 
 *)
+
+type type_context = { o:ObjTable.t; m:MethodTable.t; c:TypeId.t }
+
+let rec typecheck_posexpr ({expr; _} as posex : posexpr ) (c : type_context) :
+	  posexpr option = 
+  match typecheck_expr expr c with 
+  | Some(e, t) -> Some { posex with expr=e; exprtyp=(Some t) }
+  | None -> None
+let typecheck_expr (e:expr) (c : type_context) : (expr, TypeId.t) option   = 
+  match e with
+  | Int(_) -> Some (e, TypeId.intt)
+  | Plus(e1, e2) -> let e1typed = typecheck_posexpr e1 in 
+		    let e2typed = typecheck_posexpr e2 in 
+		    let typech = match (e1typed.exptyp, e2typed.exptyp) with 
+		      | (_,_) -> Some TypeId.intt
+		      | _ -> None
+		    in match typech with 
+		       | Some (t) -> Some (Plus(e1typed, e2typed),  typech)
+		       | None -> None
+  | _ -> failwith "expression not implemented"
+		    
 
 let tokenize_main () =
   for i = 1 to (Array.length Sys.argv - 1) do

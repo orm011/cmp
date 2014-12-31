@@ -12,7 +12,10 @@ module TypeId = struct
     | SelfType -> "SELF_TYPE"
     | Absolute(t) -> t
   let obj = tvar_of_string("Object")
- 
+  let objt = "Object"
+  let intt = "Int"
+  let stringt = "String"
+  let boolt  = "Bool"
   include Comparable.Make(T)
 end
 

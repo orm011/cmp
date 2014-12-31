@@ -7,6 +7,10 @@ module TypeId : sig
     val string_of_tvar: tvar -> string
     include Comparable.S with type t := t
     val obj : tvar
+    val objt : t
+    val intt : t
+    val stringt : t
+    val boolt : t
 end
 
 module ObjId : sig

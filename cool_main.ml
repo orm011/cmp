@@ -284,21 +284,19 @@ type type_context = { o:ObjTable.t; m:MethodTable.t; c:TypeId.t }
 let rec typecheck_posexpr ({expr; _} as posex : posexpr ) (c : type_context) :
 	  posexpr option = 
   match typecheck_expr expr c with 
-  | Some(e, t) -> Some { posex with expr=e; exprtyp=(Some t) }
+  | Some(e, t) -> Some { posex with expr=e; exprtyp=(Some (TypeId.Absolute t)) }
   | None -> None
-let typecheck_expr (e:expr) (c : type_context) : (expr, TypeId.t) option   = 
+and typecheck_expr (e:expr) (c : type_context) : (expr * TypeId.t) option =
   match e with
   | Int(_) -> Some (e, TypeId.intt)
-  | Plus(e1, e2) -> let e1typed = typecheck_posexpr e1 in 
-		    let e2typed = typecheck_posexpr e2 in 
-		    let typech = match (e1typed.exptyp, e2typed.exptyp) with 
-		      | (_,_) -> Some TypeId.intt
-		      | _ -> None
-		    in match typech with 
-		       | Some (t) -> Some (Plus(e1typed, e2typed),  typech)
-		       | None -> None
+  | Plus(l, r) -> (
+    match Option.both (typecheck_posexpr l c) (typecheck_posexpr r c) with
+       | Some (lt, rt) ->
+	  let  absint = (TypeId.Absolute TypeId.intt) in
+	  if (Option.both l.exprtyp r.exprtyp) = Some (absint, absint)
+	  then Some (Plus(lt, rt), TypeId.intt) else None
+       | None -> None)
   | _ -> failwith "expression not implemented"
-		    
 
 let tokenize_main () =
   for i = 1 to (Array.length Sys.argv - 1) do

@@ -259,7 +259,7 @@ module MethodTable : MethodTableT = struct
 				   
     type t = methsig FullId.Map.t
 		     
-    let methsig_of_formal {methodname; formalparams; returnType; _} = 
+    let methsig_of_formal {formalparams; returnType; _} = 
       let nf = List.map formalparams
 			~f:(function 
 			| (Formal (_, typ), _) -> typ

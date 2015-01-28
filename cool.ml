@@ -93,6 +93,7 @@ and dispatchrec = {obj:posexpr; dispatchType:typename option; id:MethodId.t; arg
 and posexpr = { expr:expr;
 		pos:Lexing.position;
 		exprtyp:typename option }
+(* should it be ObjId.id or ObjId.t? *)
 and idrec = {name:ObjId.id;  idtyp:typename option}
 and node =
 | Prog of posnode list

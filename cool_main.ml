@@ -277,9 +277,10 @@ context needed
    O(v)
    M(C, f) = (t0,...,tn, ret)
    C to resolve self type. 
+   typegraph to determine conformance
 *)
 
-type type_context = { o:ObjTable.t; m:MethodTable.t; c:TypeId.t }
+type type_context = { o:ObjTable.t; m:MethodTable.t; c:TypeId.t; g:Conforms.typegraph }
 
 let get_abs_type (c:type_context) (name:ObjId.id) : TypeId.t option  = 
   match name with 

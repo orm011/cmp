@@ -225,6 +225,29 @@ let get_class_graph (prog : node)
   Conforms.finish almost
 
 
+				      
+(* 
+ type check checklist:
+
+1) method table is global
+2) attribute table is class local, and visible to attribute initialization?
+3) inheritance affects attribute visibility
+
+ *)
+
+
+
+(* let check_class (cl: node) (g : Conforms.typegraph) : unit =  *)
+(*   match cl with  *)
+(*   | Class ({classname; features; _}) -> List.iter features ~f:check_feature *)
+(*   | _ -> failwith "only Class expected" *)
+
+(* let check_prog (prog: node) (g : Conforms.typegraph) : unit =  *)
+(*   match prog with  *)
+(*   | Prog (classes) -> List.iter classes ~f:check_class *)
+(*   | _ -> failwith "only Prog expected" *)
+
+
 module type ObjTableT = sig
     type t
     val add_obj: t -> ObjId.t * TypeId.t -> t
@@ -242,6 +265,8 @@ end
 module type MethodTableT = sig
     type t
     type methsig = { params: typename list; ret: typename }
+
+    val empty: t
     val add_meth: t -> TypeId.t -> methodrec -> t
     val get_meth: t -> TypeId.t * MethodId.t -> methsig option
 end
@@ -266,11 +291,33 @@ module MethodTable : MethodTableT = struct
 			| _ -> failwith "formal expected")
       in  { params=nf; ret=returnType }
 
+    let empty = FullId.Map.empty
+ 
     let add_meth m t ({ methodname; _ } as mrec) = 
       FullId.Map.add m ~key:(t, methodname) ~data:(methsig_of_formal mrec)
 
     let get_meth m pr = FullId.Map.find m pr 
 end
+
+let get_method_table (prog: node) : MethodTable.t = 
+  let rec meth_helper classes acc : MethodTable.t = 
+    let rec get_class_methods ({classname; features; _} as cr: classrec) acc
+	: MethodTable.t = match features with 
+      | [] -> acc
+      | (VarField(_),_) :: rest
+	-> get_class_methods {cr with features=rest } acc
+      | (Method (mrec),_) :: rest 
+	-> get_class_methods {cr with features=rest
+			     } (MethodTable.add_meth
+				  acc (TypeId.t_of_tvar classname) mrec)
+      | _ -> failwith "only field or method allowed in feature list"
+    in match classes with 
+       | [] -> acc
+       | (Class(cr), _) :: rest -> meth_helper rest (get_class_methods cr acc)
+       | _ -> failwith "only class allowed in class list"
+  in match prog with 
+     | Prog (clss) -> meth_helper clss MethodTable.empty
+     | _ -> failwith "only prog here..."
 
 (* 
 context needed

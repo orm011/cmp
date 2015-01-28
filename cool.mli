@@ -5,6 +5,7 @@ module TypeId : sig
     type tvar = Absolute of t | SelfType
     val tvar_of_string: string -> tvar
     val string_of_tvar: tvar -> string
+    val t_of_tvar: tvar -> t
     include Comparable.S with type t := t
     val obj : tvar
     val objt : t

@@ -11,6 +11,11 @@ module TypeId = struct
   let string_of_tvar = function 
     | SelfType -> "SELF_TYPE"
     | Absolute(t) -> t
+
+  let t_of_tvar = function
+    | SelfType -> failwith "selftype"
+    | Absolute(t) -> t
+
   let obj = tvar_of_string("Object")
   let objt = "Object"
   let intt = "Int"
@@ -56,7 +61,7 @@ module MethodId = struct
 (*   end *)
 
 
-
+(* TODO remove this typename alias *)
 type typename = TypeId.tvar
 
 type expr =
@@ -93,8 +98,10 @@ and dispatchrec = {obj:posexpr; dispatchType:typename option; id:MethodId.t; arg
 and posexpr = { expr:expr;
 		pos:Lexing.position;
 		exprtyp:typename option }
-(* should it be ObjId.id or ObjId.t? *)
+(* TODO: idtyp: should it be ObjId.id or ObjId.t?, or should it be 
+there at all? *)
 and idrec = {name:ObjId.id;  idtyp:typename option}
+(* TODO: these shouldn't be variants *)
 and node =
 | Prog of posnode list
 | VarField of field
@@ -103,7 +110,9 @@ and node =
 | Formal of ObjId.id * typename
 | ParseError
  and posnode = node * Lexing.position
- and field = { fieldname : ObjId.id; fieldtype : typename; init : posexpr }
+ and field = { fieldname : ObjId.id; fieldtype : typename;
+	       init : posexpr }
+(* TODO: classname should be a TypeId.t *)
  and classrec = { classname : typename; inherits : typename;
 		  features : posnode list }
  and methodrec = { methodname: MethodId.t; formalparams: posnode list;

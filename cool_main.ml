@@ -281,14 +281,23 @@ context needed
 
 type type_context = { o:ObjTable.t; m:MethodTable.t; c:TypeId.t }
 
-let rec typecheck_posexpr ({expr; _} as posex : posexpr ) (c : type_context) :
-	  posexpr option = 
+let get_abs_type (c:type_context) (name:ObjId.id) : TypeId.t option  = 
+  match name with 
+  | ObjId.Name (n) -> ObjTable.get_obj c.o n
+  | ObjId.Self -> Some c.c
+  | ObjId.Dummy -> failwith "dont call me with dummy"
+
+let rec typecheck_posexpr ({expr; _} as posex : posexpr
+			  ) (c : type_context) : posexpr option = 
   match typecheck_expr expr c with 
   | Some(e, t) -> Some { posex with expr=e; exprtyp=(Some (TypeId.Absolute t)) }
   | None -> None
 and typecheck_expr (e:expr) (c : type_context) : (expr * TypeId.t) option =
   match e with
   | Int(_) -> Some (e, TypeId.intt)
+  | Id({name; _})  -> (match (get_abs_type c name)  with 
+		      | None -> failwith "not found" 
+		      | Some (t) -> Some ( e, t ) )
   | Plus(l, r) -> (
     match Option.both (typecheck_posexpr l c) (typecheck_posexpr r c) with
        | Some (lt, rt) ->

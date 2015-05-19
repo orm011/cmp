@@ -18,6 +18,7 @@ module ObjId : sig
     type t with sexp
     include Comparable.S with type t := t
     type id = Name of t | Self | Dummy 
+    val t_of_id: id -> t
     val id_of_string: string -> id
     val string_of_id: id -> string
 end

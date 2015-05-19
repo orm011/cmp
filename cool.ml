@@ -31,6 +31,10 @@ module ObjId = struct
     include T
     include Comparable.Make(T)
     type id = Name of t | Self | Dummy
+    let t_of_id = function
+      | Name (t) -> t
+      | Self -> failwith "id was not absolute"
+      | Dummy -> failwith "wth. Dummy"
     let id_of_string st = if st = "self" then Self else Name st
     let string_of_id v = match v with
       | Self -> "self"

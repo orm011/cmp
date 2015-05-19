@@ -229,10 +229,9 @@ let get_class_graph (prog : node)
 (* 
  type check checklist:
 
-1) method table is global
+1) method table is global 
 2) attribute table is class local, and visible to attribute initialization?
-3) inheritance affects attribute visibility
-
+3) inheritance affects scope of fields
  *)
 
 
@@ -252,6 +251,8 @@ module type ObjTableT = sig
     type t
     val add_obj: t -> ObjId.t * TypeId.t -> t
     val get_obj: t -> ObjId.t -> TypeId.t option
+    val empty: t
+    val merge: t -> t -> t
 end
 
 module ObjTable : ObjTableT = struct 
@@ -260,6 +261,9 @@ module ObjTable : ObjTableT = struct
       ObjId.Map.add t ~key:id ~data:typ
     let get_obj t id = 
       ObjId.Map.find t id
+    let empty = ObjId.Map.empty
+    let merge a b = 
+      ObjId.Map.fold b ~init:a ~f:(fun ~key ~data mp ->  ObjId.Map.add mp ~key ~data);
 end
 
 module type MethodTableT = sig
@@ -299,6 +303,12 @@ module MethodTable : MethodTableT = struct
     let get_meth m pr = FullId.Map.find m pr 
 end
 
+module TopLevelDefs = struct
+    type names = { o:ObjTable.t; m:MethodTable.t }
+    type t = names TypeId.Map.t
+    
+end
+
 let get_method_table (prog: node) : MethodTable.t = 
   let rec meth_helper classes acc : MethodTable.t = 
     let rec get_class_methods ({classname; features; _} as cr: classrec) acc
@@ -318,6 +328,19 @@ let get_method_table (prog: node) : MethodTable.t =
   in match prog with 
      | Prog (clss) -> meth_helper clss MethodTable.empty
      | _ -> failwith "only prog here..."
+
+(* gets the table mapping all class fields to their types *)
+(* this table has all the symbols defined locally in the class *) 
+let get_class_partial_object_table (cls: node) : ObjTable.t = 
+  match cls with 
+  | Class ({classname; features; _ }) -> 
+    let f ((x : node), _) = (match x with 
+      | Method(_) -> None
+      | Formal (id,typ) -> Some (ObjId.t_of_id id, TypeId.t_of_tvar typ)
+      | _ -> failwith "invalid class member") in
+    let pairs = List.filter_map features ~f in
+    List.fold pairs ~init:ObjTable.empty ~f:ObjTable.add_obj 
+  | _ -> failwith "only class"
 
 (* 
 context needed

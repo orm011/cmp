@@ -1,11 +1,12 @@
 open Core.Std;;
 
 module TypeId : sig
-    type t with sexp
+    type t with sexp (* cannot be self-type *)
     type tvar = Absolute of t | SelfType
     val tvar_of_string: string -> tvar
     val string_of_tvar: tvar -> string
     val t_of_tvar: tvar -> t
+		val string_of_t: t -> string
     include Comparable.S with type t := t
     val obj : tvar
     val objt : t
@@ -15,10 +16,11 @@ module TypeId : sig
 end
 
 module ObjId : sig
-    type t with sexp
+    type t with sexp (* cannot be self *)
     include Comparable.S with type t := t
-    type id = Name of t | Self | Dummy 
+    type id = Name of t | Self
     val t_of_id: id -> t
+		val string_of_t: t -> string
     val id_of_string: string -> id
     val string_of_id: id -> string
 end
@@ -30,11 +32,12 @@ module MethodId : sig
     val string_of_t: t -> string
 end
 
-type typename = TypeId.tvar
+type formal = ObjId.t * TypeId.t
+
 
 type expr =
   | Let of letrec
-  | Assign of idrec * posexpr
+  | Assign of ObjId.t * posexpr
   | Comp of posexpr
   | Lequal of posexpr * posexpr
   | Lt of posexpr * posexpr
@@ -46,40 +49,74 @@ type expr =
   | IsVoid of posexpr
   | Neg of posexpr
   | Dispatch of dispatchrec
-  | Id of idrec
+  | Id of ObjId.id
   | Int of string
   | Str of string
   | Bool of bool
   | Block of posexpr list
   | If of ifrec
-  | New of typename
+  | New of TypeId.tvar (* can be self *)
   | Loop of looprec
   | Case of caserec
   | NoExpr
   | ExprError
 and caserec = { test:posexpr; branches:branch list}
-and branch  = { branchname:ObjId.id; branchtype:typename;  branche:posexpr }
+and branch  = { branchname:ObjId.t; branchtype:TypeId.t;  branche:posexpr }
 and looprec =  { cond:posexpr; body:posexpr }
 and ifrec = { pred:posexpr; thenexp:posexpr; elseexp:posexpr }
-and letrec = { decls: field list; letbody: posexpr }
-and dispatchrec = {obj:posexpr; dispatchType:typename option; id:MethodId.t; args:posexpr list}
-and posexpr = { expr:expr;
-		pos:Lexing.position;
-		exprtyp:typename option }
-and idrec = {name:ObjId.id; idtyp:typename option}
-and node =
-| Prog of posnode list
-| VarField of field
-| Class of classrec
-| Method of methodrec
-| Formal of ObjId.id * typename
-| ParseError
- and posnode = node * Lexing.position
- and field = { fieldname : ObjId.id; fieldtype : typename; init : posexpr }
- and classrec = { classname : typename; inherits : typename;
-		  features : posnode list }
- and methodrec = { methodname: MethodId.t; formalparams: posnode list;
-		 returnType: typename; defn:posexpr};;
+and letrec = { decls: fieldr list; letbody: posexpr }
+and dispatchrec = {obj:posexpr; dispatchType:TypeId.t option; id:MethodId.t; args:posexpr list}
+and posexpr = { 
+	expr:expr;
+	pos:Lexing.position;
+	exprtyp:TypeId.tvar option 
+	}
+and fieldr = { 
+	fieldname : ObjId.t; (* cannot be self *) 
+	fieldtype : TypeId.tvar; (* can be self_type *) 
+	init : posexpr;
+}
+		
+type posfield = fieldr * Lexing.position
+				
+type methodr = { 
+	methodname: MethodId.t; 
+	formalparams: (formal * Lexing.position) list; 
+	returnType: TypeId.tvar; 
+	defn:posexpr
+	}
+	
+type posmethod = methodr * Lexing.position
+
+(* used only for the parser *)
+type feature = ParserMethod of methodr | ParserField of fieldr  
+
+type cool_class = { 
+	classname : TypeId.t; 
+	inherits : TypeId.t; 
+	methods : posmethod list; 
+	fields : posfield list 
+}
+		
+type posclass = cool_class * Lexing.position
+
+type prog = posclass list
+type posprog = prog * Lexing.position
  
+
+exception ParseError of Lexing.position
 (* the formal params is a list of formals with position
 but to print them we need them to be posnodes *)
+
+
+(* the nature of Self_Type: *)
+(* okay in: 1) method return type 2) field declaration type 3) let declaration type  4) argument to new *)
+(* What is the meaning of Self_Type in those cases above *)
+(* not okay in 1) class name, 2) inherits, 3) formal param for method 4) case 5) dispatch *)
+
+(* main must have no arguments *)
+
+(* the rules for self *)
+(* okay in dispatch: foo() -> self.foo() *)
+(* The identifier self may be referenced, but it is an error to assign to self or to bind
+self in a let, a case, or as a formal parameter. It is also illegal to have attributes named self .*)

@@ -3,6 +3,7 @@
     open Cool_tools;;
     let obj = TypeId.obj;;
     type tvar = Cool.TypeId.tvar;;
+(*		open Core.Std;; shadows Error, conflict problem *)
 (*      set_debug ();;*)
 %}
 
@@ -39,14 +40,13 @@ error recovery:
 - an expression inside a {...} block
 *)
 
-%start <Cool.posnode> program
+%start <Cool.posprog> program
 (*%start <Cool.posexpr> posexpr*)
 
 %%
 program:
-  | classes = classlists; EOF { (Cool.Prog(classes), $endpos(classes)
-			      ) }
-  | ERROR { (Cool.ParseError, $endpos)} (* to shush a compiler *)
+  | classes = classlists; EOF { (classes, $endpos(classes)) }
+  | ERROR { (raise (Cool.ParseError $endpos), $endpos)} (* to shush a compiler *)
 				(* warning *)
 
 classlists:
@@ -57,31 +57,37 @@ revclasslists:
   | rest = revclasslists CLASS cl = singleclass  { cl :: rest }
   | rest = revclasslists CLASS e = error  {
 			  syntax_error $startpos(e) $startofs(e) "classlist";
-			  (ParseError, $endpos) :: []
+			  (raise (Cool.ParseError $endpos), $endpos) :: []
 			}
   | CLASS e = error { syntax_error $startpos(e) $startofs(e) "classlist";
-			      (ParseError, $endpos) :: [] }
+			      (raise (Cool.ParseError $endpos), $endpos) :: [] }
 
 singleclass:
-  | classname = TYPEID INHERITS inherits = TYPEID LBRACE features
+  | classname = TYPEID INHERITS inherits = TYPEID? LBRACE features
     = classfield* RBRACE SEMI
-	     { (Cool.Class { classname;  inherits; features }, $endpos)  }
-  | classname = TYPEID LBRACE features = classfield* RBRACE SEMI
-	     { (Cool.Class { classname; inherits=TypeId.obj; features }, $endpos) }
-
+	     { let open Core.Std in let methods = List.filter_map features ~f:(function | (Cool.ParserMethod(mr), pos) -> Some(mr, pos) | _ -> None) in 
+					let fields = List.filter_map features ~f:(function | (Cool.ParserField(mf), pos) -> Some (mf,pos) | _ -> None) in
+					let classname = (match classname with 
+					| TypeId.Absolute(t) -> t
+					| _ -> failwith "classname must not be self") in
+					let inherits = (match inherits with 
+					| Some(TypeId.Absolute(t)) -> t
+					| None -> TypeId.objt
+					| _ -> failwith "invalid inherits")  
+				in ( { classname;  inherits; methods; fields}, $endpos)  }
 
 methodid:
   | nam = OBJECTID { MethodId.t_of_objid nam }
 
 classfield:
-  | field = vardec SEMI { (Cool.VarField field, $endpos) }
+  | field = vardec SEMI { (Cool.ParserField field, $endpos) }
   | methodname  = methodid; LPAREN; formalparams = separated_list(COMMA, formal);
     RPAREN COLON returnType = TYPEID LBRACE defn
 		       = posexpr RBRACE; SEMI
-    ;  { (Cool.Method { methodname; formalparams; returnType; defn },  $endpos) }
+    ;  { (Cool.ParserMethod { methodname; formalparams; returnType; defn },  $endpos) }
   | error SEMI {
 	    syntax_error $startpos $startofs "classfield";
-			      (ParseError, $endpos) }
+			      (raise (ParseError $endpos), $endpos) }
   | error EOF { failwith "save me" }
 
 posexpr:
@@ -89,21 +95,28 @@ posexpr:
 
 vardec:
   | fieldname = OBJECTID COLON fieldtype = TYPEID ASSIGN init=posexpr; {
+			let fieldname = (match fieldname with | Cool.ObjId.Name(t) -> t | _ -> failwith "declaring name") in  
 		     { fieldname; fieldtype; init } }
   | fieldname = OBJECTID COLON fieldtype
-    = TYPEID { { fieldname; fieldtype;  init=(untyped_expr NoExpr $endpos) }}
+    = TYPEID { 
+			let fieldname = (match fieldname with | Cool.ObjId.Name(t) -> t | _ -> failwith "declaring name") in  
+			{ fieldname; fieldtype;  init=(untyped_expr NoExpr $endpos) }}
+			
 formal:
-  | id = OBJECTID COLON typ = TYPEID { (Cool.Formal(id, typ), $endpos) }
+  | id = OBJECTID COLON typ = TYPEID { 
+		let id=(match id with | Cool.ObjId.Name(t) -> t| _ -> failwith "id in formal") in
+		let typ=(match typ with | Cool.TypeId.Absolute(t) -> t | _ -> failwith "type id in  a formal") in	
+		((id, typ), $endpos) }
 
 
 revdecls:
   | dec = vardec { dec :: [] }
   | rest = revdecls COMMA dec = vardec { dec :: rest }
-  | e = error { e; syntax_error $startpos(e) $startofs(e) "revdecls"; {fieldname=ObjId.Dummy; fieldtype =obj; init=( untyped_expr  ExprError $endpos  )} :: []  }
+  | e = error { e; syntax_error $startpos(e) $startofs(e) "revdecls"; {fieldname=failwith "error"; fieldtype =obj; init=( untyped_expr  ExprError $endpos  )} :: []  }
   | rest = revdecls COMMA e = error 
 				{ e; syntax_error $startpos(e)
 				     $startofs(e) "many"; 
-				  {fieldname=ObjId.Dummy; fieldtype=obj; init=(untyped_expr ExprError $endpos)} :: []  }
+				  {fieldname=failwith "error "; fieldtype=obj; init=(untyped_expr ExprError $endpos)} :: []  }
   | error EOF { failwith "save me" }
 
 letdecls:
@@ -137,7 +150,9 @@ expr:
   | CASE test=posexpr OF branches
     =nonempty_list(terminated(branch, SEMI))
 		  ESAC { Case {test; branches }} 
-  | id = id; ASSIGN; e2 = posexpr %prec ASSIGN { Cool.Assign(id, e2) } 
+  | id = id; ASSIGN; e2 = posexpr %prec ASSIGN { 
+		let id=(match id with | Cool.ObjId.Name(t)-> t| _ -> failwith "assign id") in
+		Cool.Assign(id, e2) } 
   | NOT; e = posexpr  { Cool.Comp(e) } 
   | e1 = posexpr; LE; e2 = posexpr %prec LE { Lequal(e1, e2) } 
   | e1 = posexpr; LT; e2 = posexpr  %prec LT { Lt(e1, e2) } 
@@ -149,16 +164,17 @@ expr:
   | ISVOID; e = posexpr %prec ISVOID { Cool.IsVoid(e) } 
   | NEG; e = posexpr %prec NEG  { Cool.Neg(e) } 
   | id = methodid; LPAREN; args = separated_list(COMMA, posexpr); 
-    RPAREN { Dispatch { Cool.obj=(untyped_expr (Cool.Id { name=ObjId.Self; idtyp=None}) $startpos(id)); 
+    RPAREN { Dispatch { Cool.obj=(untyped_expr (Cool.Id ObjId.Self) $startpos(id)); 
 			 Cool.dispatchType=None;
 			 Cool.id; args } } 
   | obj = posexpr;  DOT;  
      ide = id; LPAREN; args = separated_list(COMMA, posexpr); 
      RPAREN { Dispatch { Cool.obj; Cool.dispatchType=None;
-				    Cool.id=(MethodId.t_of_objid ide.Cool.name); args } } 
+				    Cool.id=(MethodId.t_of_objid ide); args } } 
   | obj = posexpr AT distype = TYPEID DOT ide = id; LPAREN; 
     args = separated_list(COMMA, posexpr) RPAREN
-	{ Dispatch { Cool.obj; Cool.dispatchType=Some(distype); Cool.id=(MethodId.t_of_objid ide.Cool.name); args } } 
+	{ let dispatchType = (match distype with | TypeId.Absolute(t) -> Some(t) | _ -> failwith "dispatch type" ) in
+		 Dispatch { Cool.obj; dispatchType; Cool.id=(MethodId.t_of_objid ide); args } } 
   | LPAREN; e = expr; RPAREN { e }
   | int = INT_CONST { Cool.Int(int) } 
   | str = STR_CONST { Cool.Str(str) } 
@@ -166,7 +182,9 @@ expr:
   | name = id { Cool.Id name }
 
 id:
-  | name = OBJECTID { { name; idtyp=None }}
+  | name = OBJECTID { name }
 branch:
   | branchname=OBJECTID COLON branchtype=TYPEID DARROW branche
-    =posexpr { { branchname; branchtype; branche } }
+    =posexpr { let branchtype = (match branchtype with | TypeId.Absolute(t) -> t | _ -> failwith "branchtype") in
+		let branchname = (match branchname with | ObjId.Name(t) -> t | _ -> failwith "branchname") in
+		{ branchname; branchtype; branche } }

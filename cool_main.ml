@@ -6,39 +6,22 @@ open Lexing;;
 
 let pad str = (String.make 2 ' ') ^ str;;
 
-let rec padded strlist = List.map ~f:pad strlist
-and lines_of_posnode posnode = 
-  let (_, p) = posnode in ["#" ^ string_of_int p.Lexing.pos_lnum] @ lines_of_node posnode
+let padded strlist = List.map ~f:pad strlist
 
-and lines_of_node posnode = match posnode with
-  | (ParseError, _) -> failwith "why print parse error?"
-  | (Prog (clslist), _) ->
-    ["_program"] @ padded (List.concat (List.map ~f:lines_of_posnode  clslist))
-  | (Class ({classname;inherits;features}), pos) ->
-    ["_class"; pad (TypeId.string_of_tvar classname); pad (TypeId.string_of_tvar inherits); pad "\"" ^ pos.Lexing.pos_fname ^ "\""] @
-    padded (["("] @ (List.concat (List.map ~f:lines_of_posnode  features)) @ [")"])
-  | (VarField (fieldrec), _) -> ["_attr";] @ padded (fieldprint fieldrec)
-  | (Formal (a,b),_) -> ["_formal"] @ (padded  [ObjId.string_of_id a; TypeId.string_of_tvar b])
-  | (Method { methodname; formalparams; returnType; defn }, _) ->
-    ["_method"] @ padded ([ MethodId.string_of_t methodname; ] @ 
-                          (List.concat (List.map formalparams ~f:
-                                          lines_of_posnode))
-                          @ [TypeId.string_of_tvar returnType] @ lines_of_posexpr defn)
-and lines_of_posexpr posexpr = match posexpr with
+let rec lines_of_posexpr posexpr = match posexpr with
   | {expr; pos; exprtyp; } -> ["#" ^ string_of_int pos.Lexing.pos_lnum] @
                               (lines_of_expr expr) @ [ ": " ^ match exprtyp with 
     | None -> "_no_type" 
     | Some(typ) ->  TypeId.string_of_tvar typ
     ] 
 and cat_expr a b = (lines_of_posexpr a) @ (lines_of_posexpr b)
-
-and fieldprint {fieldname; fieldtype; init}
-  = [ObjId.string_of_id fieldname; TypeId.string_of_tvar fieldtype;] @ (lines_of_posexpr init)
+and lines_of_field {  fieldname; fieldtype; init } = 
+		[ObjId.string_of_t fieldname; TypeId.string_of_tvar fieldtype;] @ (lines_of_posexpr init)
 and lines_of_branch {branchname; branchtype;  branche}
-  = ["_branch"] @ padded([ObjId.string_of_id branchname; TypeId.string_of_tvar branchtype] @ (lines_of_posexpr branche))
+  = ["_branch"] @ padded([ObjId.string_of_t branchname; TypeId.string_of_t branchtype] @ (lines_of_posexpr branche))
 and lines_of_expr (expr : Cool.expr) = match expr with 
   | ExprError -> failwith "why print expr error?"
-  | Let {decls; letbody} -> ["_let"]  @ padded ((List.concat (List.map decls ~f:fieldprint)) @ 
+  | Let {decls; letbody} -> ["_let"]  @ padded ((List.concat (List.map decls ~f:lines_of_field)) @ 
                                                 (lines_of_posexpr letbody))
   | Block a -> ["_block"] @ padded (List.concat (List.map a ~f:lines_of_posexpr))
   | If {pred; thenexp; elseexp} -> ["_cond"] @ 
@@ -55,7 +38,7 @@ and lines_of_expr (expr : Cool.expr) = match expr with
                                      (List.map  
                                         branches  
                                         ~f:lines_of_branch)))
-  | Assign(a,b) -> ["_assign"] @ padded ( [ObjId.string_of_id a.name]  @ (lines_of_posexpr b))
+  | Assign(a,b) -> ["_assign"] @ padded ( [ObjId.string_of_t a]  @ (lines_of_posexpr b))
   | Comp(a) -> ["_comp" ] @ padded (lines_of_posexpr a)
   | Lequal(a,b) -> [ "_lte" ] @ padded (cat_expr a b)
   | Eq(a,b) -> [ "_eq" ] @ padded (cat_expr a b)
@@ -67,7 +50,7 @@ and lines_of_expr (expr : Cool.expr) = match expr with
   | Dispatch(a) -> lines_of_dispatch a
   | Neg(a) -> ["_neg"] @ padded (lines_of_posexpr a)
   | IsVoid(a) -> ["_isvoid"] @ padded (lines_of_posexpr a)
-  | Id(i) -> [ "_object"; ] @ padded [ObjId.string_of_id i.name]
+  | Id(i) -> [ "_object"; ] @ padded [ObjId.string_of_id i]
   | Int(str) ->  [ "_int"] @ padded [str]
   | Str(str) -> [ "_string" ] @ padded ["\"" ^ (Cool_lexer.print_escaped_string str) ^ "\""]
   | Bool(b) -> [ "_bool" ] @ padded [if b then "1" else "0" ]
@@ -75,8 +58,50 @@ and lines_of_expr (expr : Cool.expr) = match expr with
 and lines_of_dispatch {obj; dispatchType; id; args } = match dispatchType with
   | None -> ["_dispatch"]  @ padded  ( ( lines_of_posexpr obj ) @ [ MethodId.string_of_t id; "("  ] @ 
                                        (List.concat ( List.map args ~f:lines_of_posexpr )) @ [ ")" ] )
-  | Some(typ) -> ["_static_dispatch" ] @ padded ( (lines_of_posexpr obj) @ [ TypeId.string_of_tvar typ; MethodId.string_of_t  id; "("]  @
+  | Some(typ) -> ["_static_dispatch" ] @ padded ( (lines_of_posexpr obj) @ [ TypeId.string_of_t typ; MethodId.string_of_t  id; "("]  @
                                                   (List.concat ( List.map args ~f:lines_of_posexpr )) @ [ ")" ] )
+
+						
+let lines_of_ps (printer:'a -> string list)  ((node, pos):('a * Lexing.position)) =   
+		["#" ^ (string_of_int pos.Lexing.pos_lnum)] @ (printer node)
+
+let lines_of_attr f = 
+		["_attr";] @ (padded (lines_of_field f))
+
+let lines_of_formal (a,b) = 
+		["_formal"] @ (padded  [ObjId.string_of_t a; TypeId.string_of_t b])
+			
+let lines_of_method { methodname; formalparams; returnType; defn } = 
+    ["_method"] @ padded ([ MethodId.string_of_t methodname; ] @
+                          (List.concat (List.map formalparams ~f:(fun form -> lines_of_ps lines_of_formal form)))
+                          @ [TypeId.string_of_tvar returnType] @ lines_of_posexpr defn)
+
+
+let lines_of_class pos {classname;inherits;methods; fields}  =
+		["_class"; 
+		pad (TypeId.string_of_t classname); 
+		pad (TypeId.string_of_t inherits); 
+		pad "\"" ^ pos.Lexing.pos_fname ^ "\""] @ 
+		padded (["("] @ 
+			let methodpos = List.map methods ~f:(fun (m,p) -> (lines_of_ps lines_of_method (m,p), p.Lexing.pos_lnum)) in
+			let fieldpos  = List.map fields ~f:(fun (f,p) -> (lines_of_ps lines_of_attr (f,p), p.Lexing.pos_lnum)) in
+			let sorted = List.sort ~cmp:(fun (_ ,p) -> fun (_,q) -> p - q) (methodpos @ fieldpos) in
+			let only = List.map sorted ~f:(fun (str,_) -> str)
+			in (List.concat only) @ [")"])
+
+(* padded (fieldprint fieldrec) *)
+	(* match posnode with                                                                            *)
+  (* | (ParseError, _) -> failwith "why print parse error?"                                        *)
+  (* | (VarField (fieldrec), _) ->                        *)
+  (* | (Formal (a,b),_) ->  *)
+  	(* and fieldprint {fieldname; fieldtype; init}                                                    *)
+(* and lines_of_posnode posnode =                                                            *)
+(*   let (_, p) = posnode in ["#" ^ string_of_int p.Lexing.pos_lnum] @ lines_of_node posnode *)
+
+
+let lines_of_prog (clslist : prog) = 
+		["_program"] @ padded 
+			(List.concat (List.map ~f:(fun ((cls,pos) : posclass) -> lines_of_ps (lines_of_class pos) (cls,pos))  clslist))
 
 
 (*
@@ -193,32 +218,16 @@ module Conforms : ConformsType = struct
 
 end
 
-let get_class_graph (prog : node) 
+let get_class_graph (prog : prog) 
   : (Conforms.typegraph, string) Result.t = 
-  let add_class gr node = match node with  
-    | Class (c) -> let { classname ; inherits ; _ } = c in
-      let actualclass = (
-        match classname with 
-        | TypeId.SelfType -> failwith "cannot name class
-						    self type"
-        | TypeId.Absolute(t) -> t
-      ) in 
-      let actualinh = (
-        match inherits with
-        | TypeId.SelfType -> failwith "cannot inherit from self type"
-        | TypeId.Absolute(t) -> t 
-      ) in 
-      Conforms.add_edge gr (actualclass, actualinh)
-    | _ -> failwith "not a class" in 
-  let add_opt (gr : (Conforms.partial_typegraph, string) Result.t) (node, _) = 
+  let add_class gr  { classname ; inherits ; _ }  = 
+      Conforms.add_edge gr (classname, inherits) in 
+  let add_opt (gr : (Conforms.partial_typegraph, string) Result.t) (c, _) = 
     (match gr with 
-     | Ok (g) -> add_class g node
+     | Ok (g) -> add_class g c
      | Error(_) as e -> e) in 
-  let partial =( match prog with 
-      | Prog ( classes ) -> 
-        let init = Ok (Conforms.initial ()) in
-        List.fold_left classes ~init ~f:add_opt
-      | _ -> failwith "not a prog") in 
+  let partial  = let init = Ok (Conforms.initial ()) 
+		in List.fold_left prog ~init ~f:add_opt in 
   let almost = (match partial with 
       | Ok (g) -> g
       | Error(s) -> failwith s) in 
@@ -227,14 +236,14 @@ let get_class_graph (prog : node)
 
 				      
 (* 
- type check checklist:
-
-1) method table is global 
-2) attribute table is class local, and visible to attribute initialization?
-3) inheritance affects scope of fields
+ semantic rule list:
+0) self type: only on method return, let, and field decl.
+1) self : only as a reference. never as a  declaration. never in an assignment.
+1) method table is globally visible
+2) fields are only visible inside.
+3) attribute initialization order
+4) SELF_TYPE in checking.
  *)
-
-
 
 (* let check_class (cl: node) (g : Conforms.typegraph) : unit =  *)
 (*   match cl with  *)
@@ -249,14 +258,14 @@ let get_class_graph (prog : node)
 
 module type ObjTableT = sig
     type t
-    val add_obj: t -> ObjId.t * TypeId.t -> t
-    val get_obj: t -> ObjId.t -> TypeId.t option
+    val add_obj: t -> ObjId.t * TypeId.tvar -> t (* id must be real but type  may be self type *)
+    val get_obj: t -> ObjId.t -> TypeId.tvar option
     val empty: t
     val merge: t -> t -> t
 end
 
 module ObjTable : ObjTableT = struct 
-    type t = TypeId.t ObjId.Map.t
+    type t = TypeId.tvar ObjId.Map.t
     let add_obj t (id, typ) = 
       ObjId.Map.add t ~key:id ~data:typ
     let get_obj t id = 
@@ -268,10 +277,10 @@ end
 
 module type MethodTableT = sig
     type t
-    type methsig = { params: typename list; ret: typename }
+    type methsig = { params: TypeId.t list; ret: TypeId.tvar }
 
     val empty: t
-    val add_meth: t -> TypeId.t -> methodrec -> t
+    val add_meth: t -> TypeId.t -> methodr -> t
     val get_meth: t -> TypeId.t * MethodId.t -> methsig option
 end
 			     
@@ -284,15 +293,12 @@ module MethodTable : MethodTableT = struct
 	  end
 	)
 
-    type methsig = { params: typename list; ret: typename }
+    type methsig = { params: TypeId.t list; ret: TypeId.tvar }
 				   
     type t = methsig FullId.Map.t
 		     
     let methsig_of_formal {formalparams; returnType; _} = 
-      let nf = List.map formalparams
-			~f:(function 
-			| (Formal (_, typ), _) -> typ
-			| _ -> failwith "formal expected")
+      let nf = List.map formalparams ~f:(fun ((_, typ), _) -> typ)
       in  { params=nf; ret=returnType }
 
     let empty = FullId.Map.empty
@@ -309,38 +315,18 @@ module TopLevelDefs = struct
     
 end
 
-let get_method_table (prog: node) : MethodTable.t = 
-  let rec meth_helper classes acc : MethodTable.t = 
-    let rec get_class_methods ({classname; features; _} as cr: classrec) acc
-	: MethodTable.t = match features with 
-      | [] -> acc
-      | (VarField(_),_) :: rest
-	-> get_class_methods {cr with features=rest } acc
-      | (Method (mrec),_) :: rest 
-	-> get_class_methods {cr with features=rest
-			     } (MethodTable.add_meth
-				  acc (TypeId.t_of_tvar classname) mrec)
-      | _ -> failwith "only field or method allowed in feature list"
-    in match classes with 
-       | [] -> acc
-       | (Class(cr), _) :: rest -> meth_helper rest (get_class_methods cr acc)
-       | _ -> failwith "only class allowed in class list"
-  in match prog with 
-     | Prog (clss) -> meth_helper clss MethodTable.empty
-     | _ -> failwith "only prog here..."
+
+let get_method_table (prog:prog) : MethodTable.t = 
+	let absorb_class (t : MethodTable.t) (({classname; methods; _}, _) : posclass) : MethodTable.t = 
+			List.fold_left ~init:t ~f:(fun t -> fun (m,_) -> (MethodTable.add_meth t classname m)) methods  
+				in List.fold_left ~init:MethodTable.empty ~f:absorb_class prog
+				
 
 (* gets the table mapping all class fields to their types *)
 (* this table has all the symbols defined locally in the class *) 
-let get_class_partial_object_table (cls: node) : ObjTable.t = 
-  match cls with 
-  | Class ({classname; features; _ }) -> 
-    let f ((x : node), _) = (match x with 
-      | Method(_) -> None
-      | Formal (id,typ) -> Some (ObjId.t_of_id id, TypeId.t_of_tvar typ)
-      | _ -> failwith "invalid class member") in
-    let pairs = List.filter_map features ~f in
+let get_class_partial_object_table ({classname; fields; _}: cool_class) : ObjTable.t = 
+    let pairs = List.map fields ~f:(fun ({fieldname; fieldtype; _}, _) -> (fieldname, fieldtype)) in
     List.fold pairs ~init:ObjTable.empty ~f:ObjTable.add_obj 
-  | _ -> failwith "only class"
 
 (* 
 context needed
@@ -354,19 +340,21 @@ type type_context = { o:ObjTable.t; m:MethodTable.t; c:TypeId.t; g:Conforms.type
 
 let get_abs_type (c:type_context) (name:ObjId.id) : TypeId.t option  = 
   match name with 
-  | ObjId.Name (n) -> ObjTable.get_obj c.o n
+  | ObjId.Name (n) -> 
+			(match (ObjTable.get_obj c.o n) with
+		| None -> None
+		| Some(SelfType) -> Some c.c
+		| Some(Absolute(t))  -> Some(t) )
   | ObjId.Self -> Some c.c
-  | ObjId.Dummy -> failwith "dont call me with dummy"
 
-let rec typecheck_posexpr ({expr; _} as posex : posexpr
-			  ) (c : type_context) : posexpr option = 
+let rec typecheck_posexpr ({expr; _} as posex : posexpr) (c : type_context) : posexpr option = 
   match typecheck_expr expr c with 
   | Some(e, t) -> Some { posex with expr=e; exprtyp=(Some (TypeId.Absolute t)) }
   | None -> None
 and typecheck_expr (e:expr) (c : type_context) : (expr * TypeId.t) option =
   match e with
   | Int(_) -> Some (e, TypeId.intt)
-  | Id({name; _})  -> (match (get_abs_type c name)  with 
+  | Id(name)  -> (match (get_abs_type c name)  with 
 		      | None -> failwith "not found" 
 		      | Some (t) -> Some ( e, t ) )
   | Plus(l, r) -> (
@@ -378,6 +366,8 @@ and typecheck_expr (e:expr) (c : type_context) : (expr * TypeId.t) option =
        | None -> None)
   | _ -> failwith "expression not implemented"
 
+			    
+    
 let tokenize_main () =
   for i = 1 to (Array.length Sys.argv - 1) do
     let infile = Sys.argv.(i) in
@@ -403,7 +393,7 @@ let parse_main () =
 		     ignore (match gr with 
 			    | Error(s) -> failwith s 
 			    | Ok (_) -> ());
-		     lines_of_posnode p
+		     lines_of_ps lines_of_prog p
       | None -> (Cool_tools.syntax_error
                    lexbuf.lex_start_p lexbuf.lex_start_pos "top" ); ["Compilation halted due to lex and parse errors"] in
   Printf.printf "%s\n%!" (String.concat ~sep:"\n" (print_prg prg))

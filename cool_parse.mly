@@ -63,7 +63,7 @@ revclasslists:
 			      (raise (Cool.ParseError $endpos), $endpos) :: [] }
 
 singleclass:
-  | classname = TYPEID INHERITS inherits = TYPEID? LBRACE features
+  | classname = TYPEID inherits = preceded(INHERITS, TYPEID)? LBRACE features
     = classfield* RBRACE SEMI
 	     { let open Core.Std in let methods = List.filter_map features ~f:(function | (Cool.ParserMethod(mr), pos) -> Some(mr, pos) | _ -> None) in 
 					let fields = List.filter_map features ~f:(function | (Cool.ParserField(mf), pos) -> Some (mf,pos) | _ -> None) in

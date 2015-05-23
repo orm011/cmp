@@ -1,0 +1,18 @@
+class A {
+      next : SELF_TYPE;
+      foo():SELF_TYPE {
+            new SELF_TYPE
+      };
+};
+
+class B inherits A {
+      bar(x : Int, y : Int) : B {
+            foo()
+      };
+};
+
+class Main inherits IO {
+      main() : SELF_TYPE {{
+      	     self;
+      }};
+};

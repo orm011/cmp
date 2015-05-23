@@ -1,0 +1,9 @@
+class Main {
+      main () : SELF_TYPE {
+      	   self
+      };
+
+      method () : String {
+      	     "a"
+      };
+};

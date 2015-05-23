@@ -127,6 +127,8 @@ module type ConformsType = sig
   val defined: typegraph -> TypeId.t -> bool
   val conforms: typegraph -> TypeId.t -> TypeId.t -> bool
   val superU: typegraph ->  TypeId.t -> TypeId.t ->  TypeId.t
+	
+	val parent: typegraph -> TypeId.t -> TypeId.t option
 end
 
 module Conforms : ConformsType = struct
@@ -216,6 +218,7 @@ module Conforms : ConformsType = struct
     | None -> false
     | Some(_) -> true
 
+	let parent (gr :typegraph) (t:TypeId.t) =  Map.find gr t			
 end
 
 let get_class_graph (prog : prog) 
@@ -232,36 +235,13 @@ let get_class_graph (prog : prog)
       | Ok (g) -> g
       | Error(s) -> failwith s) in 
   Conforms.finish almost
-
-
-				      
-(* 
- semantic rule list:
-0) self type: only on method return, let, and field decl.
-1) self : only as a reference. never as a  declaration. never in an assignment.
-1) method table is globally visible
-2) fields are only visible inside.
-3) attribute initialization order
-4) SELF_TYPE in checking.
- *)
-
-(* let check_class (cl: node) (g : Conforms.typegraph) : unit =  *)
-(*   match cl with  *)
-(*   | Class ({classname; features; _}) -> List.iter features ~f:check_feature *)
-(*   | _ -> failwith "only Class expected" *)
-
-(* let check_prog (prog: node) (g : Conforms.typegraph) : unit =  *)
-(*   match prog with  *)
-(*   | Prog (classes) -> List.iter classes ~f:check_class *)
-(*   | _ -> failwith "only Prog expected" *)
-
+	
 
 module type ObjTableT = sig
     type t
     val add_obj: t -> ObjId.t * TypeId.tvar -> t (* id must be real but type  may be self type *)
     val get_obj: t -> ObjId.t -> TypeId.tvar option
     val empty: t
-    val merge: t -> t -> t
 end
 
 module ObjTable : ObjTableT = struct 
@@ -271,8 +251,6 @@ module ObjTable : ObjTableT = struct
     let get_obj t id = 
       ObjId.Map.find t id
     let empty = ObjId.Map.empty
-    let merge a b = 
-      ObjId.Map.fold b ~init:a ~f:(fun ~key ~data mp ->  ObjId.Map.add mp ~key ~data);
 end
 
 module type MethodTableT = sig
@@ -309,25 +287,33 @@ module MethodTable : MethodTableT = struct
     let get_meth m pr = FullId.Map.find m pr 
 end
 
-module TopLevelDefs = struct
-    type names = { o:ObjTable.t; m:MethodTable.t }
-    type t = names TypeId.Map.t
-    
-end
-
-
 let get_method_table (prog:prog) : MethodTable.t = 
 	let absorb_class (t : MethodTable.t) (({classname; methods; _}, _) : posclass) : MethodTable.t = 
 			List.fold_left ~init:t ~f:(fun t -> fun (m,_) -> (MethodTable.add_meth t classname m)) methods  
 				in List.fold_left ~init:MethodTable.empty ~f:absorb_class prog
-				
 
 (* gets the table mapping all class fields to their types *)
 (* this table has all the symbols defined locally in the class *) 
-let get_class_partial_object_table ({classname; fields; _}: cool_class) : ObjTable.t = 
+let get_class_object_table ({fields; _}: cool_class) : ObjTable.t = 
     let pairs = List.map fields ~f:(fun ({fieldname; fieldtype; _}, _) -> (fieldname, fieldtype)) in
-    List.fold pairs ~init:ObjTable.empty ~f:ObjTable.add_obj 
+    List.fold pairs ~init:ObjTable.empty ~f:ObjTable.add_obj  	
+																
+let get_fields_table (prog:prog) : ObjTable.t TypeId.Map.t =
+	let absorb_class (t : ObjTable.t TypeId.Map.t) (({classname;  _} as cls, _)  : posclass)	=
+		TypeId.Map.add t ~key:classname ~data:(get_class_object_table cls)
+		in List.fold_left ~init:TypeId.Map.empty ~f:absorb_class prog
 
+type global_context = {	
+			(* global context. does not change *)
+			(* invariants: g and fields and methods tables all have data for the same types *)
+			fields			:	ObjTable.t TypeId.Map.t; 
+			methods			:	MethodTable.t; 
+			g						:	Conforms.typegraph 
+	}
+
+let get_global_context (prog:prog) : global_context =
+		{fields=get_fields_table prog; methods=get_method_table prog; g=(match get_class_graph prog with | Ok(g) -> g | _ -> failwith "graph not done") } 		
+		
 (* 
 context needed
    O(v)
@@ -336,37 +322,116 @@ context needed
    typegraph to determine conformance
 *)
 
-type type_context = { o:ObjTable.t; m:MethodTable.t; c:TypeId.t; g:Conforms.typegraph }
+				      
+(* 
+ semantic rule list:
+0) self type: only on method return, let, and field decl.
+1) self : only as a reference. never as a  declaration. never in an assignment.
+1) method table is globally visible
+2) fields are only visible inside.
+3) attribute initialization order
+4) SELF_TYPE in checking.
+ *)
 
-let get_abs_type (c:type_context) (name:ObjId.id) : TypeId.t option  = 
+(* let check_class (cl: node) (g : Conforms.typegraph) : unit =  *)
+(*   match cl with  *)
+(*   | Class ({classname; features; _}) -> List.iter features ~f:check_feature *)
+(*   | _ -> failwith "only Class expected" *)
+
+(* let check_prog (prog: node) (g : Conforms.typegraph) : unit =  *)
+(*   match prog with  *)
+(*   | Prog (classes) -> List.iter classes ~f:check_class *)
+(*   | _ -> failwith "only Prog expected" *)
+
+(* TODO: IO class, Int class, Object classs, String class: need to place them in the methods table, the fields table and the*)
+(* typegraph *)
+
+
+type expression_context = {
+			local				:	ObjTable.t; 
+			dynamic_cls	:	TypeId.t; 
+			lexical_cls	:	TypeId.t; 			
+			global			: global_context;
+	}
+
+let rec field_lookup (global: global_context) (starting:TypeId.t)  (name:ObjId.t) : TypeId.tvar option = 
+	match TypeId.Map.find global.fields starting with 
+	| None -> failwith "type map must have all types"
+	| Some(tab) -> (match ObjTable.get_obj tab name with 
+		| Some(x) -> Some(x) (* found it ! *) 	
+		| None -> (match Conforms.parent global.g starting with
+			| Some(parent) -> field_lookup global parent name  (* lookup in the parent *)
+			| None -> None (* reached end of parent chain, defined nowhere *) 
+	))
+	
+let name_lookup (context:expression_context) (name:ObjId.id) : TypeId.tvar option  = 
   match name with 
-  | ObjId.Name (n) -> 
-			(match (ObjTable.get_obj c.o n) with
-		| None -> None
-		| Some(SelfType) -> Some c.c
-		| Some(Absolute(t))  -> Some(t) )
-  | ObjId.Self -> Some c.c
+  | ObjId.Name n -> 
+			(match ObjTable.get_obj context.local n with
+				| (Some(_) as x) -> x  (* defined within method *)
+				| None -> field_lookup context.global context.lexical_cls n ) 
+  | ObjId.Self -> Some(TypeId.SelfType)
 
-let rec typecheck_posexpr ({expr; _} as posex : posexpr) (c : type_context) : posexpr option = 
-  match typecheck_expr expr c with 
-  | Some(e, t) -> Some { posex with expr=e; exprtyp=(Some (TypeId.Absolute t)) }
-  | None -> None
-and typecheck_expr (e:expr) (c : type_context) : (expr * TypeId.t) option =
+let rec typecheck_posexpr (context : expression_context) ({expr; _} as posex : posexpr) : posexpr option = 
+  match typecheck_expr context expr with 
+  | Some(e, t) -> Some { posex with expr=e; exprtyp=Some(t) }
+  | None -> failwith "typecheck failed"
+and typecheck_expr (context : expression_context) (e:expr)  : (expr * TypeId.tvar) option =
+	let inttype = TypeId.Absolute(TypeId.intt) in 
+	let stringtype = TypeId.Absolute(TypeId.stringt) in 
+	let booltype = TypeId.Absolute(TypeId.boolt) in
   match e with
-  | Int(_) -> Some (e, TypeId.intt)
-  | Id(name)  -> (match (get_abs_type c name)  with 
+  | Int(_) -> Some(e, inttype)
+	| Str(_) -> Some(e, stringtype)
+	| Bool(_) -> Some(e, booltype)
+	| New(tt) -> Some(e, tt) (* TODO: need to check the type actually exists. maybe in a previous pass *)
+  | Id(name)  -> (match (name_lookup context name)  with 
 		      | None -> failwith "not found" 
 		      | Some (t) -> Some ( e, t ) )
   | Plus(l, r) -> (
-    match Option.both (typecheck_posexpr l c) (typecheck_posexpr r c) with
-       | Some (lt, rt) ->
-	  let  absint = (TypeId.Absolute TypeId.intt) in
-	  if (Option.both l.exprtyp r.exprtyp) = Some (absint, absint)
-	  then Some (Plus(lt, rt), TypeId.intt) else None
+    match Option.both (typecheck_posexpr context l) (typecheck_posexpr context r) with
+       | Some (lt, rt) -> if (Option.both l.exprtyp r.exprtyp) = Some (inttype, inttype)
+	  											then Some (Plus(lt, rt), inttype) 
+													else None
        | None -> None)
   | _ -> failwith "expression not implemented"
 
-			    
+
+let typecheck_method (classname : TypeId.t) ( global :  global_context ) (methodr : methodr) : methodr option = 
+	let {formalparams; defn; returnType; _} = methodr in 
+	let f = fun (tab: ObjTable.t) -> fun ((name, t), _) -> ObjTable.add_obj tab (name, Absolute(t)) in
+	let local =  List.fold_left formalparams ~init:ObjTable.empty ~f in
+	let checked_impl = typecheck_posexpr { local;  dynamic_cls=classname; lexical_cls=classname; global } defn in
+	match checked_impl with 
+	| None -> None (* failed type checking *)
+	| Some(x) -> (let ret = Some {methodr with defn=x} in 
+		match (x.exprtyp, returnType) with 
+		| (None,_) -> failwith "should have a type now. this is a compiler bug"
+		| (Some(TypeId.SelfType), TypeId.SelfType) -> ret
+		| (Some(TypeId.Absolute(actual)), TypeId.Absolute(expected)) -> 
+				if Conforms.conforms global.g actual expected then ret else None
+		| _ -> None)
+
+let typecheck_class (global : global_context) cool_class : cool_class option = 
+	let {methods; classname; _} = cool_class in
+	let checked = List.map ~f:(fun (m,_) -> typecheck_method classname global m) methods in
+	match Option.all checked with 
+	| None -> None
+	| Some(l) -> let checkedmethods = List.map (List.zip_exn l methods) ~f:(fun (mm, (_,pos)) -> (mm, pos)) 
+		in Some {cool_class with methods=checkedmethods}
+		
+let typecheck_prog prog : prog option = 
+	let global = get_global_context prog in
+		let checked = List.map ~f:(fun (cls,_) -> typecheck_class global cls) prog in
+		match Option.all checked with 
+		| None -> None
+		| Some(l) -> let checkedclasses = List.map (List.zip_exn l prog) ~f:(fun (cls, (_,pos)) -> (cls, pos)) 
+		in Some checkedclasses
+
+(* TODO:*)
+(* create builtin global context *)
+(* generate context based on program class list *)
+(* 	*)    
     
 let tokenize_main () =
   for i = 1 to (Array.length Sys.argv - 1) do
@@ -388,12 +453,10 @@ let parse_main () =
     if Cool_tools.err_count () > 0
     then ["Compilation halted due to lex and parse errors"] 
     else match prg  with
-      | Some(p) ->   let (prgnopos, _) = p in 
-		     let gr = get_class_graph prgnopos in 
-		     ignore (match gr with 
-			    | Error(s) -> failwith s 
-			    | Ok (_) -> ());
-		     lines_of_ps lines_of_prog p
+      | Some(p) ->   let (prgnopos, pos) = p in 
+					(match typecheck_prog prgnopos with 
+					| None -> failwith "failed type check"
+					| Some(completedp) -> lines_of_ps lines_of_prog (completedp, pos))
       | None -> (Cool_tools.syntax_error
                    lexbuf.lex_start_p lexbuf.lex_start_pos "top" ); ["Compilation halted due to lex and parse errors"] in
   Printf.printf "%s\n%!" (String.concat ~sep:"\n" (print_prg prg))

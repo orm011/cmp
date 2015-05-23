@@ -69,7 +69,7 @@ and dispatchrec = {obj:posexpr; dispatchType:TypeId.t option; id:MethodId.t; arg
 and posexpr = { 
 	expr:expr;
 	pos:Lexing.position;
-	exprtyp:TypeId.tvar option 
+	exprtyp:TypeId.tvar option (* it really can be SELF_TYPE *) 
 	}
 and fieldr = { 
 	fieldname : ObjId.t; (* cannot be self *) 
@@ -81,7 +81,7 @@ type posfield = fieldr * Lexing.position
 				
 type methodr = { 
 	methodname: MethodId.t; 
-	formalparams: (formal * Lexing.position) list; 
+	formalparams: (formal * Lexing.position) list;  (* yes, formals with position are printed by reference *)
 	returnType: TypeId.tvar; 
 	defn:posexpr
 	}

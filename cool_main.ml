@@ -311,8 +311,12 @@ type global_context = {
 			g						:	Conforms.typegraph 
 	}
 
-let get_global_context (prog:prog) : global_context =
-		{fields=get_fields_table prog; methods=get_method_table prog; g=(match get_class_graph prog with | Ok(g) -> g | _ -> failwith "graph not done") } 		
+let get_global_context (prog:prog) : global_context = {
+	fields=get_fields_table prog; 
+	methods=get_method_table prog; 
+	g=(match get_class_graph prog with 
+		| Ok(g) -> g 
+		| _ -> failwith "graph not done") } 		
 		
 (* 
 context needed

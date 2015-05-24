@@ -318,39 +318,6 @@ let get_global_context (prog:prog) : global_context = {
 		| Ok(g) -> g 
 		| _ -> failwith "graph not done") } 		
 		
-(* 
-context needed
-   O(v)
-   M(C, f) = (t0,...,tn, ret)
-   C to resolve self type. 
-   typegraph to determine conformance
-*)
-
-				      
-(* 
- semantic rule list:
-0) self type: only on method return, let, and field decl.
-1) self : only as a reference. never as a  declaration. never in an assignment.
-1) method table is globally visible
-2) fields are only visible inside.
-3) attribute initialization order
-4) SELF_TYPE in checking.
- *)
-
-(* let check_class (cl: node) (g : Conforms.typegraph) : unit =  *)
-(*   match cl with  *)
-(*   | Class ({classname; features; _}) -> List.iter features ~f:check_feature *)
-(*   | _ -> failwith "only Class expected" *)
-
-(* let check_prog (prog: node) (g : Conforms.typegraph) : unit =  *)
-(*   match prog with  *)
-(*   | Prog (classes) -> List.iter classes ~f:check_class *)
-(*   | _ -> failwith "only Prog expected" *)
-
-(* TODO: IO class, Int class, Object classs, String class: need to place them in the methods table, the fields table and the*)
-(* typegraph *)
-
-
 type expression_context = {
 			local				:	ObjTable.t; 
 			dynamic_cls	:	TypeId.t; 
@@ -432,11 +399,34 @@ let typecheck_prog prog : prog option =
 		| Some(l) -> let checkedclasses = List.map (List.zip_exn l prog) ~f:(fun (cls, (_,pos)) -> (cls, pos)) 
 		in Some checkedclasses
 
-(* TODO:*)
-(* create builtin global context *)
-(* generate context based on program class list *)
-(* 	*)    
-    
+
+(* 
+Notes on semantic checks:
+
+context needed
+   O(v)
+   M(C, f) = (t0,...,tn, ret)
+   C to resolve self type. 
+   typegraph to determine conformance
+
+semantic rule list:
+0) self type: only on method return, let, and field decl.
+1) self : only as a reference. never as a  declaration. never in an assignment.
+1) method table is globally visible
+2) fields are only visible inside.
+3) attribute initialization order
+4) SELF_TYPE in checking.
+
+TODO:
+ add all builtin info to global context
+ check that all type ids in the program exist in the tables (?)
+ deal with non-existing names (?)
+ fields type checking (inited properly? ordering?)
+ method lookup (dispatch)
+ SELF_TYPE rules (when does it make a difference? still a bit confused)
+ error propagation (eg, type error, or name not found)
+*)
+
 let tokenize_main () =
   for i = 1 to (Array.length Sys.argv - 1) do
     let infile = Sys.argv.(i) in

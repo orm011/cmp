@@ -1,8 +1,25 @@
-class Main inherits IO {
+class Foo inherits IO {
+      y : String;
+      (*
+      methodp () : SELF_TYPE {
+      	     new Main
+      };
+	this is actually an error: a new class x <: Main calling this method
+	would get in trouble.
+	corollary: 
+	method returning SELF_TYPE  must have an actual SELF_TYPE as expression. 
+      *)
+};
+
+class Main inherits Foo {
       x : Int;
 
       main () : SELF_TYPE {
       	   self
+      };
+
+      main2 () : SELF_TYPE {
+      	   new SELF_TYPE
       };
 
       method () : String {
@@ -17,11 +34,19 @@ class Main inherits IO {
       	      1 + 1
       };
 
-      (* method4 () : IO {
+      method4 () : IO {
       	      self
-      }; *)
+      };
 
-      (* method5 () : SELF_TYPE {
+      method5 () : Int {
+      	      x
+      };
+
+      method6 () : String {
+      	      y      
+      };
+
+      (*method5 () : SELF_TYPE {
       	      out_int(x)
       };*)
 };

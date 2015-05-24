@@ -12,7 +12,7 @@ val convert : Lexing.position -> lexpos
 
 module TypeId : sig
     type t with sexp (* cannot be self-type *)
-    type tvar = Absolute of t | SelfType
+    type tvar = Absolute of t | SelfType with sexp
     val tvar_of_string: string -> tvar
     val string_of_tvar: tvar -> string
     val t_of_tvar: tvar -> t
@@ -28,7 +28,7 @@ end
 module ObjId : sig
     type t with sexp (* cannot be self *)
     include Comparable.S with type t := t
-    type id = Name of t | Self
+    type id = Name of t | Self with sexp
     val t_of_id: id -> t
 		val string_of_t: t -> string
     val id_of_string: string -> id

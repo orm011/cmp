@@ -347,7 +347,7 @@ let name_lookup (context:expression_context) (name:ObjId.id) : TypeId.tvar optio
 let rec typecheck_posexpr (context : expression_context) ({expr; _} as posex : posexpr) : posexpr option = 
   match typecheck_expr context expr with 
   | Some(e, t) -> Some { posex with expr=e; exprtyp=Some(t) }
-  | None -> failwith "typecheck failed"
+  | None -> failwith (Sexp.to_string (sexp_of_posexpr posex)) 
 and typecheck_expr (context : expression_context) (e:expr)  : (expr * TypeId.tvar) option =
 	let inttype = TypeId.Absolute(TypeId.intt) in 
 	let stringtype = TypeId.Absolute(TypeId.stringt) in 

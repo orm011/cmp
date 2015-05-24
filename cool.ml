@@ -76,7 +76,7 @@ module MethodId = struct
 (*   end *)
 
 
-type formal = ObjId.t * TypeId.t
+type formal = ObjId.t * TypeId.t with sexp
 
 
 type expr =
@@ -121,16 +121,16 @@ and fieldr = {
 	init : posexpr;
 } with sexp
 		
-type posfield = fieldr * lexpos
+type posfield = fieldr * lexpos with sexp
 				
 type methodr = { 
 	methodname: MethodId.t; 
 	formalparams: (formal * lexpos) list; 
 	returnType: TypeId.tvar; 
 	defn:posexpr
-	}
-	
-type posmethod = methodr * lexpos
+	} with sexp
+
+type posmethod = methodr * lexpos with sexp
 
 (* used only for the parser *)
 type feature = ParserMethod of methodr | ParserField of fieldr  
@@ -140,7 +140,7 @@ type cool_class = {
 	inherits : TypeId.t; 
 	methods : posmethod list; 
 	fields : posfield list 
-}
+} with sexp
 		
 type posclass = cool_class * lexpos
 

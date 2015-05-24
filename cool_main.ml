@@ -217,7 +217,7 @@ module Conforms : ConformsType = struct
     | None -> false
     | Some(_) -> true
 
-  let parent (gr :typegraph) (t:TypeId.t) =  Map.find gr t			
+  let parent (gr :typegraph) (t:TypeId.t) =  Map.find gr t
 end
 
 let get_class_graph (prog : prog) 
@@ -295,19 +295,19 @@ let get_method_table (prog:prog) : MethodTable.t =
 (* this table has all the symbols defined locally in the class *) 
 let get_class_object_table ({fields; _}: cool_class) : ObjTable.t = 
   let pairs = List.map fields ~f:(fun ({fieldname; fieldtype; _}, _) -> (fieldname, fieldtype)) in
-  List.fold pairs ~init:ObjTable.empty ~f:ObjTable.add_obj  	
+  List.fold pairs ~init:ObjTable.empty ~f:ObjTable.add_obj  
 
 let get_fields_table (prog:prog) : ObjTable.t TypeId.Map.t =
-  let absorb_class (t : ObjTable.t TypeId.Map.t) (({classname;  _} as cls, _)  : posclass)	=
+  let absorb_class (t : ObjTable.t TypeId.Map.t) (({classname;  _} as cls, _)  : posclass) =
     TypeId.Map.add t ~key:classname ~data:(get_class_object_table cls)
   in List.fold_left ~init:TypeId.Map.empty ~f:absorb_class prog
 
-type global_context = {	
+type global_context = {
   (* global context. does not change *)
   (* invariants: g and fields and methods tables all have data for the same types *)
-  fields			:	ObjTable.t TypeId.Map.t; 
-  methods			:	MethodTable.t; 
-  g						:	Conforms.typegraph 
+  fields   : ObjTable.t TypeId.Map.t; 
+  methods   : MethodTable.t; 
+  g      : Conforms.typegraph 
 }
 
 let get_global_context (prog:prog) : global_context = {
@@ -315,20 +315,20 @@ let get_global_context (prog:prog) : global_context = {
   methods=get_method_table prog; 
   g=(match get_class_graph prog with 
       | Ok(g) -> g 
-      | _ -> failwith "graph not done") } 		
+      | _ -> failwith "graph not done") } 
 
 type expression_context = {
-  local				:	ObjTable.t; 
-  dynamic_cls	:	TypeId.t; 
-  lexical_cls	:	TypeId.t; 			
-  global			: global_context;
+  local    : ObjTable.t; 
+  dynamic_cls : TypeId.t; 
+  lexical_cls : TypeId.t; 
+  global   : global_context;
 }
 
 let rec field_lookup (global: global_context) (starting:TypeId.t)  (name:ObjId.t) : TypeId.tvar option = 
   match TypeId.Map.find global.fields starting with 
   | None -> failwith "type map must have all types"
   | Some(tab) -> (match ObjTable.get_obj tab name with 
-      | Some(x) -> Some(x) (* found it ! *) 	
+      | Some(x) -> Some(x) (* found it ! *) 
       | None -> (match Conforms.parent global.g starting with
           | Some(parent) -> field_lookup global parent name  (* lookup in the parent *)
           | None -> None (* reached end of parent chain, defined nowhere *) 
@@ -371,7 +371,7 @@ let type_compatible (lexical_cls: TypeId.t) (g: Conforms.typegraph) (actual : Ty
   let open TypeId in match (actual, expected) with 
   | SelfType, SelfType -> true
   | SelfType, Absolute(expectedt) -> Conforms.conforms g lexical_cls expectedt
-  (* if SELF_TYPE_classname <: expected, then for all C <: classname, it is also true *) 				   
+  (* if SELF_TYPE_classname <: expected, then for all C <: classname, it is also true *)        
   | Absolute(actualt), SelfType -> false (* would need actualt <: SELF_TYPE_C for all C <: classname  *)
   | Absolute(actualt), Absolute(expectedt) -> Conforms.conforms g actualt expectedt 
 

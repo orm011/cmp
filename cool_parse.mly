@@ -3,8 +3,6 @@
     open Cool_tools;;
     let obj = TypeId.obj;;
     type tvar = Cool.TypeId.tvar;;
-(*		open Core.Std;; shadows Error, conflict problem *)
-(*      set_debug ();;*)
 %}
 
 %token ASSIGN AT CASE CLASS COLON COMMA DARROW DIV DOT ELSE EOF EQ
@@ -45,8 +43,8 @@ error recovery:
 
 %%
 program:
-  | classes = classlists; EOF { (classes, $endpos(classes)) }
-  | ERROR { (raise (Cool.ParseError $endpos), $endpos)} (* to shush a compiler *)
+  | classes = classlists; EOF { (classes, (convert $endpos(classes))) }
+  | ERROR { (raise (Cool.ParseError (convert $endpos)), (convert $endpos))} (* to shush a compiler *)
 				(* warning *)
 
 classlists:
@@ -56,11 +54,11 @@ revclasslists:
   | CLASS c = singleclass { c :: [] }
   | rest = revclasslists CLASS cl = singleclass  { cl :: rest }
   | rest = revclasslists CLASS e = error  {
-			  syntax_error $startpos(e) $startofs(e) "classlist";
-			  (raise (Cool.ParseError $endpos), $endpos) :: []
+			  syntax_error (convert $startpos(e)) $startofs(e) "classlist";
+			  (raise (Cool.ParseError (convert $endpos)), (convert $endpos)) :: []
 			}
-  | CLASS e = error { syntax_error $startpos(e) $startofs(e) "classlist";
-			      (raise (Cool.ParseError $endpos), $endpos) :: [] }
+  | CLASS e = error { syntax_error (convert $startpos(e)) $startofs(e) "classlist";
+			      (raise (Cool.ParseError (convert $endpos)), (convert $endpos)) :: [] }
 
 singleclass:
   | classname = TYPEID inherits = preceded(INHERITS, TYPEID)? LBRACE features
@@ -74,24 +72,24 @@ singleclass:
 					| Some(TypeId.Absolute(t)) -> t
 					| None -> TypeId.objt
 					| _ -> failwith "invalid inherits")  
-				in ( { classname;  inherits; methods; fields}, $endpos)  }
+				in ( { classname;  inherits; methods; fields}, (convert $endpos))  }
 
 methodid:
   | nam = OBJECTID { MethodId.t_of_objid nam }
 
 classfield:
-  | field = vardec SEMI { (Cool.ParserField field, $endpos) }
+  | field = vardec SEMI { (Cool.ParserField field, (convert $endpos)) }
   | methodname  = methodid; LPAREN; formalparams = separated_list(COMMA, formal);
     RPAREN COLON returnType = TYPEID LBRACE defn
 		       = posexpr RBRACE; SEMI
-    ;  { (Cool.ParserMethod { methodname; formalparams; returnType; defn },  $endpos) }
+    ;  { (Cool.ParserMethod { methodname; formalparams; returnType; defn },  (convert $endpos)) }
   | error SEMI {
-	    syntax_error $startpos $startofs "classfield";
-			      (raise (ParseError $endpos), $endpos) }
+	    syntax_error (convert $startpos) $startofs "classfield";
+			      (raise (ParseError (convert $endpos)), (convert $endpos)) }
   | error EOF { failwith "save me" }
 
 posexpr:
-  | expr = expr { (untyped_expr expr $endpos) }
+  | expr = expr { (untyped_expr expr (convert $endpos)) }
 
 vardec:
   | fieldname = OBJECTID COLON fieldtype = TYPEID ASSIGN init=posexpr; {
@@ -100,23 +98,23 @@ vardec:
   | fieldname = OBJECTID COLON fieldtype
     = TYPEID { 
 			let fieldname = (match fieldname with | Cool.ObjId.Name(t) -> t | _ -> failwith "declaring name") in  
-			{ fieldname; fieldtype;  init=(untyped_expr NoExpr $endpos) }}
+			{ fieldname; fieldtype;  init=(untyped_expr NoExpr (convert $endpos)) }}
 			
 formal:
   | id = OBJECTID COLON typ = TYPEID { 
 		let id=(match id with | Cool.ObjId.Name(t) -> t| _ -> failwith "id in formal") in
 		let typ=(match typ with | Cool.TypeId.Absolute(t) -> t | _ -> failwith "type id in  a formal") in	
-		((id, typ), $endpos) }
+		((id, typ), (convert $endpos)) }
 
 
 revdecls:
   | dec = vardec { dec :: [] }
   | rest = revdecls COMMA dec = vardec { dec :: rest }
-  | e = error { e; syntax_error $startpos(e) $startofs(e) "revdecls"; {fieldname=failwith "error"; fieldtype =obj; init=( untyped_expr  ExprError $endpos  )} :: []  }
+  | e = error { e; syntax_error (convert $startpos(e)) $startofs(e) "revdecls"; {fieldname=failwith "error"; fieldtype =obj; init=( untyped_expr  ExprError (convert $endpos))} :: []  }
   | rest = revdecls COMMA e = error 
-				{ e; syntax_error $startpos(e)
+				{ e; syntax_error (convert $startpos(e))
 				     $startofs(e) "many"; 
-				  {fieldname=failwith "error "; fieldtype=obj; init=(untyped_expr ExprError $endpos)} :: []  }
+				  {fieldname=failwith "error "; fieldtype=obj; init=(untyped_expr ExprError (convert $endpos))} :: []  }
   | error EOF { failwith "save me" }
 
 letdecls:
@@ -125,7 +123,7 @@ letdecls:
 revbrace:
   | first = posexpr SEMI { first :: [] }
   | rest = revbrace first = posexpr SEMI { first :: rest }
-  | error SEMI { syntax_error $startpos $startofs "withinbrace";  (untyped_expr ExprError  $endpos) :: [] }
+  | error SEMI { syntax_error (convert $startpos) $startofs "withinbrace";  (untyped_expr ExprError  (convert $endpos)) :: [] }
   | error EOF { failwith "save me" }
 
 brace:
@@ -133,7 +131,7 @@ brace:
 
 within:
   | expr = posexpr %prec LET { expr }
-  | error { syntax_error $startpos $startofs "within"; (untyped_expr ExprError $endpos) }
+  | error { syntax_error (convert $startpos) $startofs "within"; (untyped_expr ExprError (convert $endpos)) }
   | error EOF { failwith "save me" }
 
 expr:
@@ -164,7 +162,7 @@ expr:
   | ISVOID; e = posexpr %prec ISVOID { Cool.IsVoid(e) } 
   | NEG; e = posexpr %prec NEG  { Cool.Neg(e) } 
   | id = methodid; LPAREN; args = separated_list(COMMA, posexpr); 
-    RPAREN { Dispatch { Cool.obj=(untyped_expr (Cool.Id ObjId.Self) $startpos(id)); 
+    RPAREN { Dispatch { Cool.obj=(untyped_expr (Cool.Id ObjId.Self) (convert $startpos(id))); 
 			 Cool.dispatchType=None;
 			 Cool.id; args } } 
   | obj = posexpr;  DOT;  

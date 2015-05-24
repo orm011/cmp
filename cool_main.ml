@@ -2,14 +2,13 @@ open Core.Std;;
 open Cool;;
 open Cool_tools;;
 open Cool_lexer;;
-open Lexing;;
 
 let pad str = (String.make 2 ' ') ^ str;;
 
 let padded strlist = List.map ~f:pad strlist
 
 let rec lines_of_posexpr posexpr = match posexpr with
-  | {expr; pos; exprtyp; } -> ["#" ^ string_of_int pos.Lexing.pos_lnum] @
+  | {expr; pos; exprtyp; } -> ["#" ^ string_of_int pos.lnum] @
                               (lines_of_expr expr) @ [ ": " ^ match exprtyp with 
     | None -> "_no_type" 
     | Some(typ) ->  TypeId.string_of_tvar typ
@@ -62,8 +61,8 @@ and lines_of_dispatch {obj; dispatchType; id; args } = match dispatchType with
                                                   (List.concat ( List.map args ~f:lines_of_posexpr )) @ [ ")" ] )
 
 						
-let lines_of_ps (printer:'a -> string list)  ((node, pos):('a * Lexing.position)) =   
-		["#" ^ (string_of_int pos.Lexing.pos_lnum)] @ (printer node)
+let lines_of_ps (printer:'a -> string list)  ((node, pos):('a * lexpos)) =   
+		["#" ^ (string_of_int pos.lnum)] @ (printer node)
 
 let lines_of_attr f = 
 		["_attr";] @ (padded (lines_of_field f))
@@ -81,10 +80,10 @@ let lines_of_class pos {classname;inherits;methods; fields}  =
 		["_class"; 
 		pad (TypeId.string_of_t classname); 
 		pad (TypeId.string_of_t inherits); 
-		pad "\"" ^ pos.Lexing.pos_fname ^ "\""] @ 
+		pad "\"" ^ pos.fname ^ "\""] @ 
 		padded (["("] @ 
-			let methodpos = List.map methods ~f:(fun (m,p) -> (lines_of_ps lines_of_method (m,p), p.Lexing.pos_lnum)) in
-			let fieldpos  = List.map fields ~f:(fun (f,p) -> (lines_of_ps lines_of_attr (f,p), p.Lexing.pos_lnum)) in
+			let methodpos = List.map methods ~f:(fun (m,p) -> (lines_of_ps lines_of_method (m,p), p.lnum)) in
+			let fieldpos  = List.map fields ~f:(fun (f,p) -> (lines_of_ps lines_of_attr (f,p), p.lnum)) in
 			let sorted = List.sort ~cmp:(fun (_ ,p) -> fun (_,q) -> p - q) (methodpos @ fieldpos) in
 			let only = List.map sorted ~f:(fun (str,_) -> str)
 			in (List.concat only) @ [")"])
@@ -96,7 +95,7 @@ let lines_of_class pos {classname;inherits;methods; fields}  =
   (* | (Formal (a,b),_) ->  *)
   	(* and fieldprint {fieldname; fieldtype; init}                                                    *)
 (* and lines_of_posnode posnode =                                                            *)
-(*   let (_, p) = posnode in ["#" ^ string_of_int p.Lexing.pos_lnum] @ lines_of_node posnode *)
+(*   let (_, p) = posnode in ["#" ^ string_of_int p.lnum] @ lines_of_node posnode *)
 
 
 let lines_of_prog (clslist : prog) = 
@@ -454,7 +453,7 @@ let parse_main () =
 					| None -> failwith "failed type check"
 					| Some(completedp) -> lines_of_ps lines_of_prog (completedp, pos))
       | None -> (Cool_tools.syntax_error
-                   lexbuf.lex_start_p lexbuf.lex_start_pos "top" ); ["Compilation halted due to lex and parse errors"] in
+                   (convert lexbuf.lex_start_p) lexbuf.lex_start_pos "top" ); ["Compilation halted due to lex and parse errors"] in
   Printf.printf "%s\n%!" (String.concat ~sep:"\n" (print_prg prg))
 
 let () = parse_main ();;

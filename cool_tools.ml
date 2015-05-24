@@ -8,7 +8,7 @@ let err_count () = !errcount;;
 
 let set_debug () = debug := true;;
 
-let untyped_expr (expr:expr) (pos:Lexing.position) = 
+let untyped_expr (expr:expr) (pos:lexpos) = 
 		   { expr; pos; exprtyp=None; }
 
 
@@ -23,10 +23,10 @@ let rec deflatten { decls; letbody } =
 let debug_print str =
   if !debug then Printf.eprintf "(Debug) printing from %s\n%!" str else ()
 
-let syntax_error startp startofs loc = 
+let syntax_error (startp : lexpos) startofs loc = 
   errcount := !errcount + 1;
   debug_print loc;
   Printf.eprintf "\"%s\", line %d: parse error at or near %d\n%!"  
-		 startp.Lexing.pos_fname startp.Lexing.pos_lnum
-		 (startofs - startp.Lexing.pos_bol);;
+		 startp.fname startp.lnum
+		 (startofs - startp.bol);;
 

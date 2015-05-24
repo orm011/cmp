@@ -1,5 +1,15 @@
 open Core.Std;;
 
+
+type lexpos = {
+		fname : string;
+   	lnum : int;
+   	bol : int;
+   	cnum : int;
+		} with sexp
+
+val convert : Lexing.position -> lexpos
+
 module TypeId : sig
     type t with sexp (* cannot be self-type *)
     type tvar = Absolute of t | SelfType
@@ -68,25 +78,25 @@ and letrec = { decls: fieldr list; letbody: posexpr }
 and dispatchrec = {obj:posexpr; dispatchType:TypeId.t option; id:MethodId.t; args:posexpr list}
 and posexpr = { 
 	expr:expr;
-	pos:Lexing.position;
+	pos:lexpos;
 	exprtyp:TypeId.tvar option (* it really can be SELF_TYPE *) 
 	}
 and fieldr = { 
 	fieldname : ObjId.t; (* cannot be self *) 
 	fieldtype : TypeId.tvar; (* can be self_type *) 
 	init : posexpr;
-}
+} with sexp
 		
-type posfield = fieldr * Lexing.position
+type posfield = fieldr * lexpos
 				
 type methodr = { 
 	methodname: MethodId.t; 
-	formalparams: (formal * Lexing.position) list;  (* yes, formals with position are printed by reference *)
+	formalparams: (formal * lexpos) list;  (* yes, formals with position are printed by reference *)
 	returnType: TypeId.tvar; 
 	defn:posexpr
 	}
 	
-type posmethod = methodr * Lexing.position
+type posmethod = methodr * lexpos
 
 (* used only for the parser *)
 type feature = ParserMethod of methodr | ParserField of fieldr  
@@ -98,13 +108,13 @@ type cool_class = {
 	fields : posfield list 
 }
 		
-type posclass = cool_class * Lexing.position
+type posclass = cool_class * lexpos
 
 type prog = posclass list
-type posprog = prog * Lexing.position
+type posprog = prog * lexpos
  
 
-exception ParseError of Lexing.position
+exception ParseError of lexpos
 (* the formal params is a list of formals with position
 but to print them we need them to be posnodes *)
 

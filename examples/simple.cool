@@ -1,5 +1,11 @@
 class Foo inherits IO {
-      y : String;
+      foofield : String <- "hello";
+
+      (* x : Baz; unknown type *)
+      methodpunk () : IO {
+      		 self
+      };
+
       (*
       methodp () : SELF_TYPE {
       	     new Main
@@ -13,6 +19,7 @@ class Foo inherits IO {
 
 class Main inherits Foo {
       x : Int;
+      myfoofield : IO;
 
       main () : SELF_TYPE {
       	   self
@@ -42,8 +49,8 @@ class Main inherits Foo {
       	      x
       };
 
-      method6 () : String {
-      	      y      
+      method6 () : IO {
+      	      myfoofield
       };
 
       (*method5 () : SELF_TYPE {

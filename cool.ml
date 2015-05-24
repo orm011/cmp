@@ -3,7 +3,7 @@ open Core.Std;;
 
 module TypeId = struct
   module T = struct
-      type t = string with sexp, compare (*invariant, never equal to SELF_TYPE *)
+     	type t = string with sexp, compare (*invariant, never equal to SELF_TYPE *)
   end
   include T
 
@@ -25,14 +25,14 @@ let string_of_t t = t
   let boolt  = "Bool"
   include Comparable.Make(T)
 end
-
+	
 module ObjId = struct
     module T = struct
-	type t = string with sexp, compare
+      type t = string with sexp, compare
     end
     include T
     include Comparable.Make(T)
-    type id = Name of t | Self
+    type id = Name of t | Self with sexp
     let t_of_id = function
       | Name (t) -> t
       | Self -> failwith "id was not absolute"
@@ -109,7 +109,7 @@ and fieldr = {
 	fieldname : ObjId.t; (* cannot be self *) 
 	fieldtype : TypeId.tvar; (* can be self_type *) 
 	init : posexpr;
-}
+} with sexp
 		
 type posfield = fieldr * Lexing.position
 				

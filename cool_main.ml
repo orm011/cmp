@@ -379,12 +379,15 @@ let typecheck_method (classname : TypeId.t) ( global :  global_context ) (method
 	match checked_impl with 
 	| None -> None (* failed type checking *)
 	| Some(x) -> (let ret = Some {methodr with defn=x} in 
-		match (x.exprtyp, returnType) with 
-		| (None,_) -> failwith "should have a type now. this is a compiler bug"
-		| (Some(TypeId.SelfType), TypeId.SelfType) -> ret
-		| (Some(TypeId.Absolute(actual)), TypeId.Absolute(expected)) -> 
-				if Conforms.conforms global.g actual expected then ret else None
-		| _ -> None)
+		match x.exprtyp with 
+		| None -> failwith "should have a type now. this is a compiler bug"
+		| Some(t) -> (let open TypeId in match (t,returnType) with 
+			| SelfType, SelfType -> ret
+			| SelfType, Absolute(expected) -> (* if SELF_TYPE_classname <: expected, then for all C <: classname, it is also true *) 
+					if Conforms.conforms global.g classname expected  then ret else None 
+			| Absolute(actual), SelfType -> None (* would need actual <: SELF_TYPE_C for all C <: classname  *)
+			| Absolute(actual), Absolute(expected) -> if Conforms.conforms global.g actual expected then ret else None
+		))
 
 let typecheck_class (global : global_context) cool_class : cool_class option = 
 	let {methods; classname; _} = cool_class in

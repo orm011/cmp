@@ -1,4 +1,6 @@
-class Main {
+class Main inherits IO {
+      x : Int;
+
       main () : SELF_TYPE {
       	   self
       };
@@ -6,4 +8,20 @@ class Main {
       method () : String {
       	     "a"
       };
+      
+      method2 () : Object {
+      	      "a"
+      };
+
+      method3 () : Int {
+      	      1 + 1
+      };
+
+      (* method4 () : IO {
+      	      self
+      }; *)
+
+      (* method5 () : SELF_TYPE {
+      	      out_int(x)
+      };*)
 };

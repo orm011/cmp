@@ -1,10 +1,8 @@
 open Core.Std;;
 
-
 type lexpos = {
 		fname : string;
    	lnum : int;
-   	bol : int;
    	cnum : int;
 		} with sexp
 
@@ -42,8 +40,7 @@ module MethodId : sig
     val string_of_t: t -> string
 end
 
-type formal = ObjId.t * TypeId.t
-
+type formal = ObjId.t * TypeId.t with sexp
 
 type expr =
   | Let of letrec
@@ -68,7 +65,6 @@ type expr =
   | New of TypeId.tvar (* can be self *)
   | Loop of looprec
   | Case of caserec
-  | NoExpr
   | ExprError
 and caserec = { test:posexpr; branches:branch list}
 and branch  = { branchname:ObjId.t; branchtype:TypeId.t;  branche:posexpr }
@@ -84,19 +80,19 @@ and posexpr = {
 and fieldr = { 
 	fieldname : ObjId.t; (* cannot be self *) 
 	fieldtype : TypeId.tvar; (* can be self_type *) 
-	init : posexpr;
+	init : posexpr option;
 } with sexp
 		
-type posfield = fieldr * lexpos
+type posfield = fieldr * lexpos with sexp
 				
 type methodr = { 
 	methodname: MethodId.t; 
 	formalparams: (formal * lexpos) list;  (* yes, formals with position are printed by reference *)
 	returnType: TypeId.tvar; 
 	defn:posexpr
-	}
+	} with sexp
 	
-type posmethod = methodr * lexpos
+type posmethod = methodr * lexpos with sexp
 
 (* used only for the parser *)
 type feature = ParserMethod of methodr | ParserField of fieldr  
@@ -106,27 +102,10 @@ type cool_class = {
 	inherits : TypeId.t; 
 	methods : posmethod list; 
 	fields : posfield list 
-}
+} with sexp
 		
-type posclass = cool_class * lexpos
-
-type prog = posclass list
-type posprog = prog * lexpos
+type posclass = cool_class * lexpos with sexp
+type prog = posclass list with sexp
+type posprog = prog * lexpos with sexp
  
-
-exception ParseError of lexpos
-(* the formal params is a list of formals with position
-but to print them we need them to be posnodes *)
-
-
-(* the nature of Self_Type: *)
-(* okay in: 1) method return type 2) field declaration type 3) let declaration type  4) argument to new *)
-(* What is the meaning of Self_Type in those cases above *)
-(* not okay in 1) class name, 2) inherits, 3) formal param for method 4) case 5) dispatch *)
-
-(* main must have no arguments *)
-
-(* the rules for self *)
-(* okay in dispatch: foo() -> self.foo() *)
-(* The identifier self may be referenced, but it is an error to assign to self or to bind
-self in a let, a case, or as a formal parameter. It is also illegal to have attributes named self .*)
+exception ParseError of lexpos with sexp

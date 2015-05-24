@@ -1,38 +1,36 @@
 open Core.Std;;
 
-
 type lexpos = {
 		fname : string;
    	lnum : int;
-   	bol : int;
    	cnum : int;
 		} with sexp (* defining our own position type so that it has sexp representation *)
 
-let convert ({pos_fname; pos_lnum; pos_bol; pos_cnum} : Lexing.position) : lexpos =
-			{ fname=pos_fname; lnum = pos_lnum; bol = pos_bol; cnum = pos_cnum }
+let convert ({pos_fname; pos_lnum; pos_cnum; pos_bol} : Lexing.position) : lexpos =
+			{ fname=pos_fname; lnum = pos_lnum; cnum = pos_cnum  - pos_bol;}
 
 module TypeId = struct
   module T = struct
-     	type t = string with sexp, compare (*invariant, never equal to SELF_TYPE *)
+     	type t = Tid of string with sexp, compare (*invariant, never equal to SELF_TYPE *)
   end
   include T
 
   type tvar  = Absolute of t | SelfType with sexp, compare
-  let tvar_of_string st = if st = "SELF_TYPE"  then SelfType else Absolute st
+  let tvar_of_string st = if st = "SELF_TYPE"  then SelfType else Absolute (Tid st)
   let string_of_tvar = function 
     | SelfType -> "SELF_TYPE"
-    | Absolute(t) -> t
+    | Absolute(Tid(t)) -> t
 
   let t_of_tvar = function
     | SelfType -> failwith "selftype"
     | Absolute(t) -> t
 
-let string_of_t t = t 
+  let string_of_t (Tid t) = t 
   let obj = tvar_of_string("Object")
-  let objt = "Object"
-  let intt = "Int"
-  let stringt = "String"
-  let boolt  = "Bool"
+  let objt = Tid "Object"
+  let intt = Tid "Int"
+  let stringt = Tid "String"
+  let boolt  = Tid "Bool"
   include Comparable.Make(T)
 end
 	
@@ -65,19 +63,7 @@ module MethodId = struct
     let string_of_t t = t 
   end
 
-(* module MethodId = struct *)
-(*     module T = struct *)
-(* 	type t = string with sexp, compare *)
-(*       end *)
-(*     include T *)
-(*     include Comparable.Make(T) *)
-(*     let mid_of_string st = st *)
-(*     let string_of_mid m = m *)
-(*   end *)
-
-
 type formal = ObjId.t * TypeId.t with sexp
-
 
 type expr =
   | Let of letrec
@@ -102,7 +88,6 @@ type expr =
   | New of TypeId.tvar (* can be self *)
   | Loop of looprec
   | Case of caserec
-  | NoExpr
   | ExprError
 and caserec = { test:posexpr; branches:branch list}
 and branch  = { branchname:ObjId.t; branchtype:TypeId.t;  branche:posexpr }
@@ -118,7 +103,7 @@ and posexpr = {
 and fieldr = { 
 	fieldname : ObjId.t; (* cannot be self *) 
 	fieldtype : TypeId.tvar; (* can be self_type *) 
-	init : posexpr;
+	init : posexpr option;
 } with sexp
 		
 type posfield = fieldr * lexpos with sexp
@@ -142,25 +127,8 @@ type cool_class = {
 	fields : posfield list 
 } with sexp
 		
-type posclass = cool_class * lexpos
-
-type prog = posclass list
-type posprog = prog * lexpos
+type posclass = cool_class * lexpos with sexp
+type prog = posclass list with sexp
+type posprog = prog * lexpos with sexp
  
-
 exception ParseError of lexpos
-(* the formal params is a list of formals with position
-but to print them we need them to be posnodes *)
-
-
-(* the nature of Self_Type: *)
-(* okay in: 1) method return type 2) field declaration type 3) let declaration type  4) argument to new *)
-(* What is the meaning of Self_Type in those cases above *)
-(* not okay in 1) class name, 2) inherits, 3) formal param for method 4) case 5) dispatch *)
-
-(* main must have no arguments *)
-
-(* the rules for self *)
-(* okay in dispatch: foo() -> self.foo() *)
-(* The identifier self may be referenced, but it is an error to assign to self or to bind
-self in a let, a case, or as a formal parameter. It is also illegal to have attributes named self .*)

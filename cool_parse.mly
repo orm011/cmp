@@ -92,13 +92,9 @@ posexpr:
   | expr = expr { (untyped_expr expr (convert $endpos)) }
 
 vardec:
-  | fieldname = OBJECTID COLON fieldtype = TYPEID ASSIGN init=posexpr; {
+  | fieldname = OBJECTID COLON fieldtype = TYPEID init=preceded(ASSIGN, posexpr)?; {
 			let fieldname = (match fieldname with | Cool.ObjId.Name(t) -> t | _ -> failwith "declaring name") in  
-		     { fieldname; fieldtype; init } }
-  | fieldname = OBJECTID COLON fieldtype
-    = TYPEID { 
-			let fieldname = (match fieldname with | Cool.ObjId.Name(t) -> t | _ -> failwith "declaring name") in  
-			{ fieldname; fieldtype;  init=(untyped_expr NoExpr (convert $endpos)) }}
+		     { fieldname; fieldtype; init; } }
 			
 formal:
   | id = OBJECTID COLON typ = TYPEID { 
@@ -110,11 +106,11 @@ formal:
 revdecls:
   | dec = vardec { dec :: [] }
   | rest = revdecls COMMA dec = vardec { dec :: rest }
-  | e = error { e; syntax_error (convert $startpos(e)) $startofs(e) "revdecls"; {fieldname=failwith "error"; fieldtype =obj; init=( untyped_expr  ExprError (convert $endpos))} :: []  }
+  | e = error { e; syntax_error (convert $startpos(e)) $startofs(e) "revdecls"; {fieldname=failwith "error"; fieldtype =obj; init=(Some ( untyped_expr  ExprError (convert $endpos)))} :: []  }
   | rest = revdecls COMMA e = error 
 				{ e; syntax_error (convert $startpos(e))
 				     $startofs(e) "many"; 
-				  {fieldname=failwith "error "; fieldtype=obj; init=(untyped_expr ExprError (convert $endpos))} :: []  }
+				  {fieldname=failwith "error "; fieldtype=obj; init=(Some (untyped_expr ExprError (convert $endpos)))} :: []  }
   | error EOF { failwith "save me" }
 
 letdecls:

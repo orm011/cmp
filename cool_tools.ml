@@ -27,6 +27,5 @@ let syntax_error (startp : lexpos) startofs loc =
   errcount := !errcount + 1;
   debug_print loc;
   Printf.eprintf "\"%s\", line %d: parse error at or near %d\n%!"  
-		 startp.fname startp.lnum
-		 (startofs - startp.bol);;
+		 startp.fname startp.lnum startp.cnum (* using cnum here may be wrong, unless startofs is the same as pos_cnum. *)
 

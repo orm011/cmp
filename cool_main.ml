@@ -2,115 +2,13 @@ open Core.Std;;
 open Cool;;
 open Cool_tools;;
 open Cool_lexer;;
-
-let pad str = (String.make 2 ' ') ^ str;;
-
-let padded strlist = List.map ~f:pad strlist
-
-let rec lines_of_posexpr posexpr = match posexpr with
-  | {expr; pos; exprtyp; } -> ["#" ^ string_of_int pos.lnum] @
-                              (lines_of_expr expr) @ [ ": " ^ match exprtyp with 
-    | None -> "_no_type" 
-    | Some(typ) ->  TypeId.string_of_tvar typ
-    ] 
-and cat_expr a b = (lines_of_posexpr a) @ (lines_of_posexpr b)
-and lines_of_field {  fieldname; fieldtype; init } = 
-  [ObjId.string_of_t fieldname; TypeId.string_of_tvar fieldtype;] @ (lines_of_posexpr init)
-and lines_of_branch {branchname; branchtype;  branche}
-  = ["_branch"] @ padded([ObjId.string_of_t branchname; TypeId.string_of_t branchtype] @ (lines_of_posexpr branche))
-and lines_of_expr (expr : Cool.expr) = match expr with 
-  | ExprError -> failwith "why print expr error?"
-  | Let {decls; letbody} -> ["_let"]  @ padded ((List.concat (List.map decls ~f:lines_of_field)) @ 
-                                                (lines_of_posexpr letbody))
-  | Block a -> ["_block"] @ padded (List.concat (List.map a ~f:lines_of_posexpr))
-  | If {pred; thenexp; elseexp} -> ["_cond"] @ 
-                                   padded (List.concat 
-                                             (List.map 
-                                                [pred; thenexp; elseexp] 
-                                                ~f:lines_of_posexpr))
-  | New a -> ["_new"] @ padded [ TypeId.string_of_tvar a ]
-  | Loop { cond; body } -> ["_loop" ] @ padded ((lines_of_posexpr cond) @ (lines_of_posexpr body))
-  | Case { test; branches} -> ["_typcase"] @ 
-                              padded (
-                                (lines_of_posexpr test) 
-                                @ (List.concat  
-                                     (List.map  
-                                        branches  
-                                        ~f:lines_of_branch)))
-  | Assign(a,b) -> ["_assign"] @ padded ( [ObjId.string_of_t a]  @ (lines_of_posexpr b))
-  | Comp(a) -> ["_comp" ] @ padded (lines_of_posexpr a)
-  | Lequal(a,b) -> [ "_lte" ] @ padded (cat_expr a b)
-  | Eq(a,b) -> [ "_eq" ] @ padded (cat_expr a b)
-  | Lt(a,b) -> [ "_lt" ] @ padded (cat_expr a b)
-  | Div(a,b) -> [ "_divide" ] @ padded (cat_expr a b)
-  | Mult(a,b) -> [ "_mul" ] @ padded (cat_expr a b)
-  | Minus(a,b) -> [ "_sub" ] @ padded (cat_expr a b)
-  | Plus(a,b) -> [ "_plus" ] @ padded (cat_expr a b)
-  | Dispatch(a) -> lines_of_dispatch a
-  | Neg(a) -> ["_neg"] @ padded (lines_of_posexpr a)
-  | IsVoid(a) -> ["_isvoid"] @ padded (lines_of_posexpr a)
-  | Id(i) -> [ "_object"; ] @ padded [ObjId.string_of_id i]
-  | Int(str) ->  [ "_int"] @ padded [str]
-  | Str(str) -> [ "_string" ] @ padded ["\"" ^ (Cool_lexer.print_escaped_string str) ^ "\""]
-  | Bool(b) -> [ "_bool" ] @ padded [if b then "1" else "0" ]
-  | NoExpr -> ["_no_expr"]
-and lines_of_dispatch {obj; dispatchType; id; args } = match dispatchType with
-  | None -> ["_dispatch"]  @ padded  ( ( lines_of_posexpr obj ) @ [ MethodId.string_of_t id; "("  ] @ 
-                                       (List.concat ( List.map args ~f:lines_of_posexpr )) @ [ ")" ] )
-  | Some(typ) -> ["_static_dispatch" ] @ padded ( (lines_of_posexpr obj) @ [ TypeId.string_of_t typ; MethodId.string_of_t  id; "("]  @
-                                                  (List.concat ( List.map args ~f:lines_of_posexpr )) @ [ ")" ] )
-
-
-let lines_of_ps (printer:'a -> string list)  ((node, pos):('a * lexpos)) =   
-  ["#" ^ (string_of_int pos.lnum)] @ (printer node)
-
-let lines_of_attr f = 
-  ["_attr";] @ (padded (lines_of_field f))
-
-let lines_of_formal (a,b) = 
-  ["_formal"] @ (padded  [ObjId.string_of_t a; TypeId.string_of_t b])
-
-let lines_of_method { methodname; formalparams; returnType; defn } = 
-  ["_method"] @ padded ([ MethodId.string_of_t methodname; ] @
-                        (List.concat (List.map formalparams ~f:(fun form -> lines_of_ps lines_of_formal form)))
-                        @ [TypeId.string_of_tvar returnType] @ lines_of_posexpr defn)
-
-
-let lines_of_class pos {classname;inherits;methods; fields}  =
-  ["_class"; 
-   pad (TypeId.string_of_t classname); 
-   pad (TypeId.string_of_t inherits); 
-   pad "\"" ^ pos.fname ^ "\""] @ 
-  padded (["("] @ 
-          let methodpos = List.map methods ~f:(fun (m,p) -> (lines_of_ps lines_of_method (m,p), p.lnum)) in
-          let fieldpos  = List.map fields ~f:(fun (f,p) -> (lines_of_ps lines_of_attr (f,p), p.lnum)) in
-          let sorted = List.sort ~cmp:(fun (_ ,p) -> fun (_,q) -> p - q) (methodpos @ fieldpos) in
-          let only = List.map sorted ~f:(fun (str,_) -> str)
-          in (List.concat only) @ [")"])
-
-(* padded (fieldprint fieldrec) *)
-(* match posnode with                                                                            *)
-(* | (ParseError, _) -> failwith "why print parse error?"                                        *)
-(* | (VarField (fieldrec), _) ->                        *)
-(* | (Formal (a,b),_) ->  *)
-(* and fieldprint {fieldname; fieldtype; init}                                                    *)
-(* and lines_of_posnode posnode =                                                            *)
-(*   let (_, p) = posnode in ["#" ^ string_of_int p.lnum] @ lines_of_node posnode *)
-
-
-let lines_of_prog (clslist : prog) = 
-  ["_program"] @ padded 
-    (List.concat (List.map ~f:(fun ((cls,pos) : posclass) -> lines_of_ps (lines_of_class pos) (cls,pos))  clslist))
-
+open Coolout;;
 
 (*
-well formed type definition:
--every type conforms to object
--
-
-different cases:
--chain is incomplete because some type definition hasn't been read yet
- *)
+Well formed type definition:
+  -tree structure rooted at object.
+  -no descendents to Int, String or Bool.  
+*)
 module type ConformsType = sig
   type partial_typegraph (* typegraph being constructed *)
   type typegraph (* fully validated type graph *)
@@ -213,9 +111,8 @@ module Conforms : ConformsType = struct
     | [] -> failwith "all prefixes have an obj, illegal input?"
     | h ::  _ -> h
 
-  let defined (gr:typegraph) t = match Map.find gr t with 
-    | None -> false
-    | Some(_) -> true
+  let defined = rooted 
+  (* every defined type in a complete typegraph is rooted, so they are equivalent. deals with base case already *)
 
   let parent (gr :typegraph) (t:TypeId.t) =  Map.find gr t
 end
@@ -344,36 +241,45 @@ let name_lookup (context:expression_context) (name:ObjId.id) : TypeId.tvar optio
      | None -> field_lookup context.global context.lexical_cls n ) 
   | ObjId.Self -> Some(TypeId.SelfType)
 
+(* uses: field decl, let decl *)
+let tvar_ok (gr : Conforms.typegraph) (tv : TypeId.tvar) : bool = 
+  let open TypeId in match tv with 
+  | SelfType -> true
+  | Absolute t -> Conforms.defined gr t
+
 let rec typecheck_posexpr (context : expression_context) ({expr; _} as posex : posexpr) : posexpr = 
   let (echecked, etype) = typecheck_expr context expr  in
   match etype with 
-  | Some t -> { posex with expr=echecked; exprtyp=etype }
-  | None -> let ret = { posex with expr=echecked; exprtyp=None} in (failwith (Sexp.to_string (sexp_of_posexpr ret)); ret)  
+  | Some _ -> { posex with expr=echecked; exprtyp=etype }
+  | None -> let ret = { posex with expr=echecked; exprtyp=None} in (failwith (Sexp.to_string_hum (sexp_of_posexpr ret)); ret)  
 and typecheck_expr (context : expression_context) (e:expr)  : (expr * TypeId.tvar option) = (* empty type indicates typecheck failure *)
   let inttype = TypeId.Absolute(TypeId.intt) in 
   let stringtype = TypeId.Absolute(TypeId.stringt) in 
   let booltype = TypeId.Absolute(TypeId.boolt) in
+  let g = context.global.g in
   match e with
-  | Int(_) -> e, Some inttype
-  | Str(_) -> e, Some stringtype
-  | Bool(_) -> e, Some booltype
-  | New(tt) -> e, Some tt (* TODO: need to check the type actually exists. maybe in a previous pass *)
-  | Id(name)  -> (match name_lookup context name  with 
+  | Int _ -> e, Some inttype
+  | Str _ -> e, Some stringtype
+  | Bool _ -> e, Some booltype
+  | New tt -> e, (match tt with 
+    | TypeId.SelfType -> Some tt
+    | TypeId.Absolute t -> if Conforms.defined g t then Some tt else None)
+  | Id name  -> (match name_lookup context name  with 
       | None -> failwith "not found" 
       | Some (t) -> e, Some t )
-  | Plus(l, r) -> 
+  | Plus (l, r) -> 
     let chl = (typecheck_posexpr context l) in 
     let chr =  (typecheck_posexpr context r) in 
-    (Plus(chl, chr), if Option.both chl.exprtyp chr.exprtyp = Some(inttype, inttype) then Some(inttype) else None) 
-  | _ -> failwith "expression not implemented"
+    (Plus(chl, chr), if Option.both chl.exprtyp chr.exprtyp = Some(inttype, inttype) then Some(inttype) else None)
+  | _ -> failwith (Printf.sprintf "expression not implemented: %s" (Sexp.to_string_hum (sexp_of_expr e)))
 
 let type_compatible (lexical_cls: TypeId.t) (g: Conforms.typegraph) (actual : TypeId.tvar) (expected : TypeId.tvar) : bool =
   let open TypeId in match (actual, expected) with 
   | SelfType, SelfType -> true
-  | SelfType, Absolute(expectedt) -> Conforms.conforms g lexical_cls expectedt
+  | SelfType, Absolute expectedt  -> Conforms.conforms g lexical_cls expectedt
   (* if SELF_TYPE_classname <: expected, then for all C <: classname, it is also true *)        
-  | Absolute(actualt), SelfType -> false (* would need actualt <: SELF_TYPE_C for all C <: classname  *)
-  | Absolute(actualt), Absolute(expectedt) -> Conforms.conforms g actualt expectedt 
+  | Absolute _, SelfType -> false (* would need actualt <: SELF_TYPE_C for all C <: classname  *)
+  | Absolute actualt, Absolute expectedt -> Conforms.conforms g actualt expectedt 
 
 let typecheck_method (classname : TypeId.t) ( global :  global_context ) (methodr : methodr) : methodr option = 
   let {formalparams; defn; returnType; _} = methodr in 
@@ -388,30 +294,41 @@ let typecheck_method (classname : TypeId.t) ( global :  global_context ) (method
 let typecheck_field (classname : TypeId.t) (global : global_context) fieldr : fieldr option = 
   let {fieldtype; init; _} = fieldr in 
   let ctx = {local=ObjTable.empty; dynamic_cls=classname; lexical_cls=classname; global } in
-  let checked_init = typecheck_posexpr ctx init in
-  match checked_init.exprtyp with 
+  match init with 
+  | None -> Some(fieldr) (* no type problems if no init *)
+  | Some initsome ->  let checked_init = typecheck_posexpr ctx initsome in
+  (match checked_init.exprtyp with 
   | None -> None 
   | Some(t) -> if type_compatible classname global.g t fieldtype 
-    then Some { fieldr with init=checked_init } else None
+    then Some { fieldr with init=Some checked_init } else None)
 
 let typecheck_class (global : global_context) cool_class : cool_class option = 
-  let {methods; classname; _} = cool_class in
-  let checked = List.map ~f:(fun (m,_) -> typecheck_method classname global m) methods in
-  match Option.all checked with 
-  | None -> None
-  | Some(l) -> let checkedmethods = List.map (List.zip_exn l methods) ~f:(fun (mm, (_,pos)) -> (mm, pos)) 
-    in Some {cool_class with methods=checkedmethods}
+  let {methods; fields; classname; _} = cool_class in
+  let checkedm = Option.all (List.map ~f:(fun (m ,_) -> typecheck_method classname global m) methods) in
+  let checkedf = Option.all (List.map ~f:(fun (fi, _) -> typecheck_field classname global fi) fields) in 
+  match (checkedm, checkedf) with 
+  | Some ms, Some fs -> 
+    let checkedmethods = List.map (List.zip_exn ms methods) ~f:(fun (mm, (_,pos)) -> (mm, pos)) in
+    let checkedfields =  List.map (List.zip_exn fs fields) ~f:(fun (ff, (_,pos)) -> (ff, pos))
+    in Some {cool_class with methods=checkedmethods; fields=checkedfields}
+  | _ -> None
 
-let typecheck_prog prog : prog option = 
-  let global = get_global_context prog in
-  let checked = List.map ~f:(fun (cls,_) -> typecheck_class global cls) prog in
-  match Option.all checked with 
-  | None -> None
-  | Some(l) -> let checkedclasses = List.map (List.zip_exn l prog) ~f:(fun (cls, (_,pos)) -> (cls, pos)) 
-    in Some checkedclasses
+(*
+the formal params is a list of formals with position
+but to print them we need them to be posnodes
 
 
-(* 
+(* the nature of Self_Type: *)
+(* okay in: 1) method return type 2) field declaration type 3) let declaration type  4) argument to new *)
+(* What is the meaning of Self_Type in those cases above *)
+not okay in 1) class name, 2) inherits, 3) formal param for method 4) case 5) dispatch
+
+main must have no arguments 
+the rules for self 
+okay in dispatch: foo() -> self.foo()
+The identifier self may be referenced, but it is an error to assign to self or to bind
+self in a let, a case, or as a formal parameter. It is also illegal to have attributes named self .
+
 Notes on semantic checks:
 
 context needed
@@ -429,14 +346,47 @@ semantic rule list:
 4) SELF_TYPE in checking.
 
 TODO:
- add all builtin info to global context
- check that all type ids in the program exist in the tables (?)
- deal with non-existing names (?)
- fields type checking (inited properly? ordering?)
- method lookup (dispatch)
- SELF_TYPE rules (when does it make a difference? still a bit confused)
- error propagation (eg, type error, or name not found)
+ Done. TypeIds: check they exist at:
+    -new 
+    -field declaration type
+    -method return type
+    -method param declaration type
+    -let expr
+    -case
+    (use s exp tree instead)
+    
+ Field names: ancestor field names accessible?  
+      A: in ref, yes. but, if name reused with a different type, then seems to complain
+      A: in manual: no explanation?
+      For now, we will do shadowing. so the innermost definition wins.
+      
+ 
+ Method override  type checks.
+ Add all builtin basic class info to global context
+ Aheck that all type ids in the program exist in the tables (?)
+ Deal with non-existing names (?) 
+ Done. fields type checking (inited properly? ordering?)
 *)
+
+(* check all type ids used in the program are well defined elsewhere *)
+let check_abs_types typegraph prog : bool =
+  let lookup t = Conforms.defined typegraph (TypeId.t_of_sexp t) in 
+  let open Sexp in let rec check_abs_types_helper (sprog : Sexp.t) : bool =
+    (match sprog with 
+    | (List [Atom("Tid");  _]) as t -> if lookup t then true else failwith (Printf.sprintf "unknown type %s" (Sexp.to_string t )) 
+    | Atom _ -> true
+    | List l -> List.fold_left ~init:true ~f:(&&) (List.map ~f:check_abs_types_helper l))
+  in check_abs_types_helper (Cool.sexp_of_prog prog)
+
+(* runs all semantic checks on prog *)
+let typecheck_prog prog : prog option = 
+  let global = get_global_context prog in
+  let _ = check_abs_types global.g prog in
+  let checked = List.map ~f:(fun (cls,_) -> typecheck_class global cls) prog in
+  match Option.all checked with 
+  | None -> None
+  | Some(l) -> let checkedclasses = List.map (List.zip_exn l prog) ~f:(fun (cls, (_,pos)) -> (cls, pos)) 
+    in Some checkedclasses
 
 let tokenize_main () =
   for i = 1 to (Array.length Sys.argv - 1) do

@@ -361,8 +361,10 @@ and typecheck_expr (context : expression_context) (e:expr)  : (expr * TypeId.tva
 		      | None -> failwith "not found" 
 		      | Some (t) -> Some ( e, t ) )
   | Plus(l, r) -> (
-    match Option.both (typecheck_posexpr context l) (typecheck_posexpr context r) with
-       | Some (lt, rt) -> if (Option.both l.exprtyp r.exprtyp) = Some (inttype, inttype)
+    let chl = (typecheck_posexpr context l) in 
+		let chr =  (typecheck_posexpr context r) in 
+		match Option.both chl chr with
+       | Some (lt, rt) -> if Option.both lt.exprtyp rt.exprtyp = Some (inttype, inttype)
 	  											then Some (Plus(lt, rt), inttype) 
 													else None
        | None -> None)

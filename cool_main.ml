@@ -344,50 +344,55 @@ let name_lookup (context:expression_context) (name:ObjId.id) : TypeId.tvar optio
 				| None -> field_lookup context.global context.lexical_cls n ) 
   | ObjId.Self -> Some(TypeId.SelfType)
 
-let rec typecheck_posexpr (context : expression_context) ({expr; _} as posex : posexpr) : posexpr option = 
-  match typecheck_expr context expr with 
-  | Some(e, t) -> Some { posex with expr=e; exprtyp=Some(t) }
-  | None -> failwith (Sexp.to_string (sexp_of_posexpr posex)) 
-and typecheck_expr (context : expression_context) (e:expr)  : (expr * TypeId.tvar) option =
+let rec typecheck_posexpr (context : expression_context) ({expr; _} as posex : posexpr) : posexpr = 
+	let (echecked, etype) = typecheck_expr context expr  in
+	match etype with 
+  | Some t -> { posex with expr=echecked; exprtyp=etype }
+  | None -> let ret = { posex with expr=echecked; exprtyp=None} in (failwith (Sexp.to_string (sexp_of_posexpr ret)); ret)  
+and typecheck_expr (context : expression_context) (e:expr)  : (expr * TypeId.tvar option) = (* empty type indicates typecheck failure *)
 	let inttype = TypeId.Absolute(TypeId.intt) in 
 	let stringtype = TypeId.Absolute(TypeId.stringt) in 
 	let booltype = TypeId.Absolute(TypeId.boolt) in
   match e with
-  | Int(_) -> Some(e, inttype)
-	| Str(_) -> Some(e, stringtype)
-	| Bool(_) -> Some(e, booltype)
-	| New(tt) -> Some(e, tt) (* TODO: need to check the type actually exists. maybe in a previous pass *)
-  | Id(name)  -> (match (name_lookup context name)  with 
+  | Int(_) -> e, Some inttype
+	| Str(_) -> e, Some stringtype
+	| Bool(_) -> e, Some booltype
+	| New(tt) -> e, Some tt (* TODO: need to check the type actually exists. maybe in a previous pass *)
+  | Id(name)  -> (match name_lookup context name  with 
 		      | None -> failwith "not found" 
-		      | Some (t) -> Some ( e, t ) )
-  | Plus(l, r) -> (
+		      | Some (t) -> e, Some t )
+  | Plus(l, r) -> 
     let chl = (typecheck_posexpr context l) in 
 		let chr =  (typecheck_posexpr context r) in 
-		match Option.both chl chr with
-       | Some (lt, rt) -> if Option.both lt.exprtyp rt.exprtyp = Some (inttype, inttype)
-	  											then Some (Plus(lt, rt), inttype) 
-													else None
-       | None -> None)
+		(Plus(chl, chr), if Option.both chl.exprtyp chr.exprtyp = Some(inttype, inttype) then Some(inttype) else None) 
   | _ -> failwith "expression not implemented"
 
+let type_compatible (lexical_cls: TypeId.t) (g: Conforms.typegraph) (actual : TypeId.tvar) (expected : TypeId.tvar) : bool =
+	let open TypeId in match (actual, expected) with 
+	| SelfType, SelfType -> true
+	| SelfType, Absolute(expectedt) -> Conforms.conforms g lexical_cls expectedt
+				(* if SELF_TYPE_classname <: expected, then for all C <: classname, it is also true *) 				   
+	| Absolute(actualt), SelfType -> false (* would need actualt <: SELF_TYPE_C for all C <: classname  *)
+	| Absolute(actualt), Absolute(expectedt) -> Conforms.conforms g actualt expectedt 
 
 let typecheck_method (classname : TypeId.t) ( global :  global_context ) (methodr : methodr) : methodr option = 
 	let {formalparams; defn; returnType; _} = methodr in 
 	let f = fun (tab: ObjTable.t) -> fun ((name, t), _) -> ObjTable.add_obj tab (name, Absolute(t)) in
 	let local =  List.fold_left formalparams ~init:ObjTable.empty ~f in
-	let checked_impl = typecheck_posexpr { local;  dynamic_cls=classname; lexical_cls=classname; global } defn in
-	match checked_impl with 
+	let checked_defn = typecheck_posexpr { local;  dynamic_cls=classname; lexical_cls=classname; global } defn in
+	match checked_defn.exprtyp with 
 	| None -> None (* failed type checking *)
-	| Some(x) -> (let ret = Some {methodr with defn=x} in 
-		match x.exprtyp with 
-		| None -> failwith "should have a type now. this is a compiler bug"
-		| Some(t) -> (let open TypeId in match (t,returnType) with 
-			| SelfType, SelfType -> ret
-			| SelfType, Absolute(expected) -> (* if SELF_TYPE_classname <: expected, then for all C <: classname, it is also true *) 
-					if Conforms.conforms global.g classname expected  then ret else None 
-			| Absolute(actual), SelfType -> None (* would need actual <: SELF_TYPE_C for all C <: classname  *)
-			| Absolute(actual), Absolute(expected) -> if Conforms.conforms global.g actual expected then ret else None
-		))
+	| Some(t) ->  if type_compatible classname global.g t returnType   
+	then Some {methodr with defn = checked_defn } else None
+
+let typecheck_field (classname : TypeId.t) (global : global_context) fieldr : fieldr option = 
+	let {fieldtype; init; _} = fieldr in 
+	let ctx = {local=ObjTable.empty; dynamic_cls=classname; lexical_cls=classname; global } in
+	let checked_init = typecheck_posexpr ctx init in
+	match checked_init.exprtyp with 
+	| None -> None 
+	| Some(t) -> if type_compatible classname global.g t fieldtype 
+	then Some { fieldr with init=checked_init } else None
 
 let typecheck_class (global : global_context) cool_class : cool_class option = 
 	let {methods; classname; _} = cool_class in

@@ -335,6 +335,8 @@ let rec field_lookup (global: global_context) (starting:TypeId.t)  (name:ObjId.t
 			| None -> None (* reached end of parent chain, defined nowhere *) 
 	))
 	
+exception SemanticError of Cool.posexpr with sexp;;
+	
 let name_lookup (context:expression_context) (name:ObjId.id) : TypeId.tvar option  = 
   match name with 
   | ObjId.Name n -> 

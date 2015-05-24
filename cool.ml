@@ -6,7 +6,7 @@ type lexpos = {
    	lnum : int;
    	bol : int;
    	cnum : int;
-		} with sexp
+		} with sexp (* defining our own position type so that it has sexp representation *)
 
 let convert ({pos_fname; pos_lnum; pos_bol; pos_cnum} : Lexing.position) : lexpos =
 			{ fname=pos_fname; lnum = pos_lnum; bol = pos_bol; cnum = pos_cnum }

@@ -1,6 +1,7 @@
 #! /bin/bash
 [ $1 -a -f $1 ]  || (echo "filename \"$1\" not found" && exit)
 
-./cool_main.byte $1 > $1.mine
-./refparse $1 > $1.official
-diff <(grep -v '\#.*' $1.mine) <(grep -v '\#.*' $1.official)
+source ./env
+
+diff <(./cool_main.byte $1 | grep -v  '\#.*')  <(reflexer examples/simple.cool | refparser  | refsemant | grep -v  '\#.*')
+

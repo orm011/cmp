@@ -216,8 +216,7 @@ let get_global_context (prog:prog) : global_context = {
 
 type expression_context = {
   local    : ObjTable.t; 
-  dynamic_cls : TypeId.t; 
-  lexical_cls : TypeId.t; 
+  cls : TypeId.t; 
   global   : global_context;
 }
 
@@ -238,7 +237,7 @@ let name_lookup (context:expression_context) (name:ObjId.id) : TypeId.tvar optio
   | ObjId.Name n -> 
     (match ObjTable.get_obj context.local n with
      | (Some(_) as x) -> x  (* defined within method *)
-     | None -> field_lookup context.global context.lexical_cls n ) 
+     | None -> field_lookup context.global context.cls n ) 
   | ObjId.Self -> Some(TypeId.SelfType)
 
 (* uses: field decl, let decl *)
@@ -271,12 +270,13 @@ and typecheck_expr (context : expression_context) (e:expr)  : (expr * TypeId.tva
     let chl = (typecheck_posexpr context l) in 
     let chr =  (typecheck_posexpr context r) in 
     (Plus(chl, chr), if Option.both chl.exprtyp chr.exprtyp = Some(inttype, inttype) then Some(inttype) else None)
+	| Let {decls; letbody} -> (*check decls as well formed. then check body*)failwith "implement me "
   | _ -> failwith (Printf.sprintf "expression not implemented: %s" (Sexp.to_string_hum (sexp_of_expr e)))
 
-let type_compatible (lexical_cls: TypeId.t) (g: Conforms.typegraph) (actual : TypeId.tvar) (expected : TypeId.tvar) : bool =
+let type_compatible (cls: TypeId.t) (g: Conforms.typegraph) (actual : TypeId.tvar) (expected : TypeId.tvar) : bool =
   let open TypeId in match (actual, expected) with 
   | SelfType, SelfType -> true
-  | SelfType, Absolute expectedt  -> Conforms.conforms g lexical_cls expectedt
+  | SelfType, Absolute expectedt  -> Conforms.conforms g cls expectedt
   (* if SELF_TYPE_classname <: expected, then for all C <: classname, it is also true *)        
   | Absolute _, SelfType -> false (* would need actualt <: SELF_TYPE_C for all C <: classname  *)
   | Absolute actualt, Absolute expectedt -> Conforms.conforms g actualt expectedt 
@@ -285,15 +285,23 @@ let typecheck_method (classname : TypeId.t) ( global :  global_context ) (method
   let {formalparams; defn; returnType; _} = methodr in 
   let f = fun (tab: ObjTable.t) -> fun ((name, t), _) -> ObjTable.add_obj tab (name, Absolute(t)) in
   let local =  List.fold_left formalparams ~init:ObjTable.empty ~f in
-  let checked_defn = typecheck_posexpr { local;  dynamic_cls=classname; lexical_cls=classname; global } defn in
+  let checked_defn = typecheck_posexpr { local;  cls=classname; global } defn in
   match checked_defn.exprtyp with 
   | None -> None (* failed type checking *)
   | Some(t) ->  if type_compatible classname global.g t returnType   
     then Some {methodr with defn = checked_defn } else None
 
+(* given an expression and a type, it checks that the expression's type is compatible with *)
+(* that type. *)
+(* assumes exp already typed *)
+let typecheck_binding (ctx :expression_context ) (exp:posexpr)  (tv:TypeId.tvar): bool =
+  match exp.exprtyp with 
+  | None -> failwith "assumes expression is typed already"
+  | Some(t) -> type_compatible ctx.cls ctx.global.g t tv
+
 let typecheck_field (classname : TypeId.t) (global : global_context) fieldr : fieldr option = 
   let {fieldtype; init; _} = fieldr in 
-  let ctx = {local=ObjTable.empty; dynamic_cls=classname; lexical_cls=classname; global } in
+  let ctx = {local=ObjTable.empty; cls=classname; global } in
   match init with 
   | None -> Some(fieldr) (* no type problems if no init *)
   | Some initsome ->  let checked_init = typecheck_posexpr ctx initsome in
@@ -345,8 +353,7 @@ semantic rule list:
 3) attribute initialization order
 4) SELF_TYPE in checking.
 
-TODO:
- Done. TypeIds: check they exist at:
+ TypeIds: check they exist at:
     -new 
     -field declaration type
     -method return type
@@ -354,18 +361,17 @@ TODO:
     -let expr
     -case
     (use s exp tree instead)
-    
- Field names: ancestor field names accessible?  
+   
+/Field names: ancestor field names accessible?  
       A: in ref, yes. but, if name reused with a different type, then seems to complain
       A: in manual: no explanation?
       For now, we will do shadowing. so the innermost definition wins.
       
- 
  Method override  type checks.
  Add all builtin basic class info to global context
- Aheck that all type ids in the program exist in the tables (?)
- Deal with non-existing names (?) 
- Done. fields type checking (inited properly? ordering?)
+ //Check that all type ids in the program exist in the tables (?)
+ //Deal with non-existing names (?) 
+ //Done. fields type checking (inited properly? ordering?)
 *)
 
 (* check all type ids used in the program are well defined elsewhere *)

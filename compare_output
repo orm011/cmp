@@ -3,5 +3,4 @@
 
 source ./env
 
-diff <(./cool_main.byte $1 | grep -v  '\#.*')  <(reflexer examples/simple.cool | refparser  | refsemant | grep -v  '\#.*')
-
+diff <(./cool_main.byte $1 | grep -v  '\#.*')  <(reflexer $1 | refparser  | refsemant | grep -v  '\#.*')

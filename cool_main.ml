@@ -246,33 +246,6 @@ let tvar_ok (gr : Conforms.typegraph) (tv : TypeId.tvar) : bool =
   | SelfType -> true
   | Absolute t -> Conforms.defined gr t
 
-let rec typecheck_posexpr (context : expression_context) ({expr; _} as posex : posexpr) : posexpr = 
-  let (echecked, etype) = typecheck_expr context expr  in
-  match etype with 
-  | Some _ -> { posex with expr=echecked; exprtyp=etype }
-  | None -> let ret = { posex with expr=echecked; exprtyp=None} in (failwith (Sexp.to_string_hum (sexp_of_posexpr ret)); ret)  
-and typecheck_expr (context : expression_context) (e:expr)  : (expr * TypeId.tvar option) = (* empty type indicates typecheck failure *)
-  let inttype = TypeId.Absolute(TypeId.intt) in 
-  let stringtype = TypeId.Absolute(TypeId.stringt) in 
-  let booltype = TypeId.Absolute(TypeId.boolt) in
-  let g = context.global.g in
-  match e with
-  | Int _ -> e, Some inttype
-  | Str _ -> e, Some stringtype
-  | Bool _ -> e, Some booltype
-  | New tt -> e, (match tt with 
-    | TypeId.SelfType -> Some tt
-    | TypeId.Absolute t -> if Conforms.defined g t then Some tt else None)
-  | Id name  -> (match name_lookup context name  with 
-      | None -> failwith "not found" 
-      | Some (t) -> e, Some t )
-  | Plus (l, r) -> 
-    let chl = (typecheck_posexpr context l) in 
-    let chr =  (typecheck_posexpr context r) in 
-    (Plus(chl, chr), if Option.both chl.exprtyp chr.exprtyp = Some(inttype, inttype) then Some(inttype) else None)
-	| Let {decls; letbody} -> (*check decls as well formed. then check body*)failwith "implement me "
-  | _ -> failwith (Printf.sprintf "expression not implemented: %s" (Sexp.to_string_hum (sexp_of_expr e)))
-
 let type_compatible (cls: TypeId.t) (g: Conforms.typegraph) (actual : TypeId.tvar) (expected : TypeId.tvar) : bool =
   let open TypeId in match (actual, expected) with 
   | SelfType, SelfType -> true
@@ -281,34 +254,95 @@ let type_compatible (cls: TypeId.t) (g: Conforms.typegraph) (actual : TypeId.tva
   | Absolute _, SelfType -> false (* would need actualt <: SELF_TYPE_C for all C <: classname  *)
   | Absolute actualt, Absolute expectedt -> Conforms.conforms g actualt expectedt 
 
+let resolve_bound ctx tvar : TypeId.t = 
+	let open TypeId in match tvar with 
+		|	Absolute t -> t
+		| SelfType -> ctx.cls
+
+let join ctx tvar1 tvar2 : TypeId.tvar =
+	let (t1, t2) = (resolve_bound ctx tvar1, resolve_bound ctx tvar2) in
+	Absolute (Conforms.superU ctx.global.g t1 t2);;
+
+let inttype = TypeId.Absolute(TypeId.intt);;
+let stringtype = TypeId.Absolute(TypeId.stringt);; 
+let booltype = TypeId.Absolute(TypeId.boolt);;
+
+let rec typecheck_posexpr (context : expression_context) ({expr; _} as posex : posexpr) : posexpr = 
+  let  (echecked, etype) = typecheck_expr context expr  in { posex with expr=echecked; exprtyp=Some etype }  
+and typecheck_expr (context : expression_context) (e:expr) : (expr * TypeId.tvar) =
+  let g = context.global.g in
+  match e with
+  | Int _ -> e, inttype
+  | Str _ -> e, stringtype
+  | Bool _ -> e, booltype
+  | New tt -> e, (match tt with 
+    | TypeId.SelfType -> tt
+    | TypeId.Absolute t -> if Conforms.defined g t then tt else (failwith "type not found"))
+  | Id name  -> (match name_lookup context name  with 
+      | None -> failwith "name not found" 
+      | Some (t) -> e, t )
+  | Plus (l, r) -> 
+    let chl = (typecheck_posexpr context l) in 
+    let chr =  (typecheck_posexpr context r) in 
+    (Plus(chl, chr), if Option.both chl.exprtyp chr.exprtyp = Some(inttype, inttype) then inttype else failwith "sum")
+	| Eq  (l, r) -> 
+		let chl = (typecheck_posexpr context l) in
+		let chr = (typecheck_posexpr context r) in 
+		let x = (Option.both chl.exprtyp chr.exprtyp) in (match x with 
+			| Some (tvar1, tvar2) -> (Eq (chl, chr), if eq_ok tvar1 tvar2 then booltype else failwith "eq not okay")
+			| None -> failwith "unexpected")
+	| Let r -> let r = (typecheck_let context r) in  let t =  (match r.letbody.exprtyp with 
+					| None -> failwith "unexpected"
+					| Some t -> t) in (Let r, t)
+	| Block exprs -> let mapped = List.map ~f:(fun e -> typecheck_posexpr context e) exprs in
+		let { exprtyp; _ } = List.last_exn mapped in (match exprtyp with 
+		| Some t -> Block mapped, t
+		| None -> failwith "unexpected")
+	| If { pred; thenexp; elseexp } -> let checked = typecheck_if context pred thenexp elseexp in 
+		let both = Option.both checked.thenexp.exprtyp checked.elseexp.exprtyp in 
+		let newtyp = (match both with 
+		| None -> failwith "unexpected"
+		| Some (t1, t2) ->  join context t1 t2) in (If checked, newtyp)
+  | _ -> failwith (Printf.sprintf "expression not implemented: %s" (Sexp.to_string_hum (sexp_of_expr e)))
+and eq_ok tvar1 tvar2 : bool  = 
+	let isspecial = fun t -> (let special = [booltype; stringtype; inttype] in ((List.find special ~f:(fun x -> x = t)) <> None)) in
+	if (isspecial tvar1) || (isspecial tvar2) then tvar1 = tvar2 else true
+and typecheck_let ctx {decls; letbody} : letrec = 
+	match decls with 
+	| [] -> {decls=[]; letbody=(typecheck_posexpr ctx letbody)}
+	| ({	fieldname; fieldtype; init } as initrec) :: rest ->
+		let checked_init = (match init with
+			|  None -> None  
+			|  Some initexp ->  Some (expr_conforms_exn ctx initexp fieldtype)) in
+		let innerctx = {ctx with local=(ObjTable.add_obj ctx.local (fieldname, fieldtype)) } in
+		let {decls=checked_rest; letbody=checked_body} = (typecheck_let innerctx {decls=rest; letbody}) in
+		  { decls={ initrec with init=checked_init } :: checked_rest; letbody=checked_body } 	
+and typecheck_if ctx pred thenexp elseexp = (* first check pred *)
+	let checkedpred = expr_conforms_exn ctx pred booltype in 
+	let checkedthen = typecheck_posexpr ctx thenexp in
+	let checkedelse = typecheck_posexpr ctx elseexp in
+	{pred=checkedpred; thenexp=checkedthen; elseexp=checkedelse }
+and expr_conforms_exn (ctx: expression_context) (exp:posexpr) (expected:TypeId.tvar) : posexpr = 
+	let checked_exp = typecheck_posexpr ctx exp in
+			match checked_exp.exprtyp with 
+		| None -> failwith "expr not well typed: "
+		| Some t -> if type_compatible ctx.cls ctx.global.g t expected then checked_exp else failwith "expr not conformant to expected"
+
+
 let typecheck_method (classname : TypeId.t) ( global :  global_context ) (methodr : methodr) : methodr option = 
   let {formalparams; defn; returnType; _} = methodr in 
   let f = fun (tab: ObjTable.t) -> fun ((name, t), _) -> ObjTable.add_obj tab (name, Absolute(t)) in
   let local =  List.fold_left formalparams ~init:ObjTable.empty ~f in
-  let checked_defn = typecheck_posexpr { local;  cls=classname; global } defn in
-  match checked_defn.exprtyp with 
-  | None -> None (* failed type checking *)
-  | Some(t) ->  if type_compatible classname global.g t returnType   
-    then Some {methodr with defn = checked_defn } else None
-
-(* given an expression and a type, it checks that the expression's type is compatible with *)
-(* that type. *)
-(* assumes exp already typed *)
-let typecheck_binding (ctx :expression_context ) (exp:posexpr)  (tv:TypeId.tvar): bool =
-  match exp.exprtyp with 
-  | None -> failwith "assumes expression is typed already"
-  | Some(t) -> type_compatible ctx.cls ctx.global.g t tv
+	let ctx = { local;  cls=classname; global } in
+  let checked_defn = expr_conforms_exn ctx defn returnType in Some {methodr with defn=checked_defn}
 
 let typecheck_field (classname : TypeId.t) (global : global_context) fieldr : fieldr option = 
   let {fieldtype; init; _} = fieldr in 
   let ctx = {local=ObjTable.empty; cls=classname; global } in
   match init with 
   | None -> Some(fieldr) (* no type problems if no init *)
-  | Some initsome ->  let checked_init = typecheck_posexpr ctx initsome in
-  (match checked_init.exprtyp with 
-  | None -> None 
-  | Some(t) -> if type_compatible classname global.g t fieldtype 
-    then Some { fieldr with init=Some checked_init } else None)
+  | Some initsome ->  let checked_init = expr_conforms_exn ctx initsome fieldtype 
+		in Some { fieldr with init=Some checked_init }
 
 let typecheck_class (global : global_context) cool_class : cool_class option = 
   let {methods; fields; classname; _} = cool_class in

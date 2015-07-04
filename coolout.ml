@@ -91,6 +91,11 @@ let lines_of_class pos {classname;inherits;methods; fields}  =
           let only = List.map sorted ~f:(fun (str,_) -> str)
           in (List.concat only) @ [")"])
 
+let show_posexpr (e : posexpr) = 
+	Printf.printf "%s\n%!" (Sexp.to_string_hum (sexp_of_posexpr e))
+
+let show_expr (e : expr) = 
+	Printf.printf "%s\n%!" (Sexp.to_string_hum (sexp_of_expr e))
 
 let lines_of_prog (clslist : prog) = 
   ["_program"] @ padded 

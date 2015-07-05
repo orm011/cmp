@@ -65,19 +65,18 @@ module MethodId = struct
 
 type formal = ObjId.t * TypeId.t with sexp
 
+type binop = Plus | Minus | Mult | Div with sexp
+type bincomp = Lequal | Lt | Eq with sexp
+
 type expr =
   | Let of letrec
-  | Assign of ObjId.t * posexpr
+	| Intcomp of bincomp * posexpr * posexpr
+	| Intop of binop * posexpr * posexpr
+	| Eq of posexpr * posexpr
   | Comp of posexpr
-  | Lequal of posexpr * posexpr
-  | Lt of posexpr * posexpr
-  | Eq of posexpr * posexpr
-  | Plus of posexpr * posexpr
-  | Minus of posexpr * posexpr
-  | Mult of posexpr * posexpr
-  | Div of posexpr * posexpr
-  | IsVoid of posexpr
   | Neg of posexpr
+  | IsVoid of posexpr
+  | Assign of ObjId.t * posexpr
   | Dispatch of dispatchrec
   | Id of ObjId.id
   | Int of string

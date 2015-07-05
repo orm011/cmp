@@ -281,11 +281,25 @@ and typecheck_expr (context : expression_context) (e:expr) : (expr * TypeId.tvar
   | Id name  -> (match name_lookup context name  with 
       | None -> failwith "name not found" 
       | Some (t) -> e, t )
-  | Plus (l, r) -> 
+  | Intop (b, l, r) -> 
     let chl = (typecheck_posexpr context l) in 
     let chr =  (typecheck_posexpr context r) in 
-    (Plus(chl, chr), if Option.both chl.exprtyp chr.exprtyp = Some(inttype, inttype) then inttype else failwith "sum")
-	| Eq  (l, r) -> 
+    (Intop (b, chl, chr), if Option.both chl.exprtyp chr.exprtyp = Some(inttype, inttype) then inttype else failwith "binop: both must be int")
+	| Intcomp  (b, l, r) ->
+		let chl = (typecheck_posexpr context l) in
+		let chr = (typecheck_posexpr context r) in 
+		let x = (Option.both chl.exprtyp chr.exprtyp) in (match x with 
+			| Some (tvar1, tvar2) -> (Intcomp (b, chl, chr), if tvar1 = inttype && tvar2 = inttype then booltype else failwith "bincomp: both must be int")
+			| None -> failwith "unexpected")
+	| Comp e -> let che = typecheck_posexpr context e in 
+		(Comp che, if che.exprtyp = Some inttype then inttype else failwith "complement: must be int")
+	| Neg e ->  let che = typecheck_posexpr context e in 
+		(Neg che, if che.exprtyp = Some booltype then booltype else failwith "neg: must be boolean") 
+	| IsVoid e -> let che = typecheck_posexpr context e in 
+	 (IsVoid che, match che.exprtyp with 
+		| Some t -> booltype
+		| None -> failwith "unexpected")
+	| Eq (l, r) -> 
 		let chl = (typecheck_posexpr context l) in
 		let chr = (typecheck_posexpr context r) in 
 		let x = (Option.both chl.exprtyp chr.exprtyp) in (match x with 

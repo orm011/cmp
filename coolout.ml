@@ -8,6 +8,16 @@ let pad str = (String.make 2 ' ') ^ str;;
 
 let padded strlist = List.map ~f:pad strlist
 
+let str_of_intop = function 
+	| Div -> "_divide" 
+  | Mult -> "_mul" 
+  | Minus -> "_sub"
+  | Plus -> "_plus"
+
+let str_of_intcomp = function 
+	| Lequal -> "_lte"
+  | Lt -> "_lt"
+
 let rec lines_of_posexpr posexpr = match posexpr with
   | {expr; pos; exprtyp; } -> ["#" ^ string_of_int pos.lnum] @
                               (lines_of_expr expr) @ [ ": " ^ match exprtyp with 
@@ -43,13 +53,9 @@ and lines_of_expr (expr : Cool.expr) = match expr with
                                         ~f:lines_of_branch)))
   | Assign(a,b) -> ["_assign"] @ padded ( [ObjId.string_of_t a]  @ (lines_of_posexpr b))
   | Comp(a) -> ["_comp" ] @ padded (lines_of_posexpr a)
-  | Lequal(a,b) -> [ "_lte" ] @ padded (cat_expr a b)
-  | Eq(a,b) -> [ "_eq" ] @ padded (cat_expr a b)
-  | Lt(a,b) -> [ "_lt" ] @ padded (cat_expr a b)
-  | Div(a,b) -> [ "_divide" ] @ padded (cat_expr a b)
-  | Mult(a,b) -> [ "_mul" ] @ padded (cat_expr a b)
-  | Minus(a,b) -> [ "_sub" ] @ padded (cat_expr a b)
-  | Plus(a,b) -> [ "_plus" ] @ padded (cat_expr a b)
+	| Intcomp (cmp, a, b) -> [str_of_intcomp cmp] @ padded (cat_expr a b)
+	| Intop (op, a, b) -> [str_of_intop op] @ padded (cat_expr a b)
+	| Eq (a, b)  -> [ "_eq" ] @ padded (cat_expr a b)
   | Dispatch(a) -> lines_of_dispatch a
   | Neg(a) -> ["_neg"] @ padded (lines_of_posexpr a)
   | IsVoid(a) -> ["_isvoid"] @ padded (lines_of_posexpr a)

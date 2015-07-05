@@ -148,13 +148,13 @@ expr:
 		let id=(match id with | Cool.ObjId.Name(t)-> t| _ -> failwith "assign id") in
 		Cool.Assign(id, e2) } 
   | NOT; e = posexpr  { Cool.Comp(e) } 
-  | e1 = posexpr; LE; e2 = posexpr %prec LE { Lequal(e1, e2) } 
-  | e1 = posexpr; LT; e2 = posexpr  %prec LT { Lt(e1, e2) } 
-  | e1 = posexpr; EQ; e2 = posexpr %prec EQ { Eq(e1, e2) } 
-  | e1 = posexpr; PLUS; e2 = posexpr %prec PLUS { Cool.Plus(e1, e2) } 
-  | e1 = posexpr; MINUS; e2 = posexpr %prec MINUS { Cool.Minus(e1, e2) } 
-  | e1 = posexpr; MULT; e2 = posexpr %prec MULT { Cool.Mult(e1, e2) } 
-  | e1 = posexpr; DIV; e2 = posexpr %prec DIV { Cool.Div(e1, e2) } 
+  | e1 = posexpr; LE; e2 = posexpr %prec LE { Intcomp (Lequal, e1, e2) } 
+  | e1 = posexpr; LT; e2 = posexpr  %prec LT { Intcomp (Lt, e1, e2) } 
+  | e1 = posexpr; EQ; e2 = posexpr %prec EQ { Eq (e1, e2) } 
+  | e1 = posexpr; PLUS; e2 = posexpr %prec PLUS { Intop (Plus, e1, e2) } 
+  | e1 = posexpr; MINUS; e2 = posexpr %prec MINUS { Intop (Minus, e1, e2) } 
+  | e1 = posexpr; MULT; e2 = posexpr %prec MULT { Intop (Mult, e1, e2) } 
+  | e1 = posexpr; DIV; e2 = posexpr %prec DIV { Intop (Div, e1, e2) } 
   | ISVOID; e = posexpr %prec ISVOID { Cool.IsVoid(e) } 
   | NEG; e = posexpr %prec NEG  { Cool.Neg(e) } 
   | id = methodid; LPAREN; args = separated_list(COMMA, posexpr); 

@@ -220,6 +220,13 @@ type expression_context = {
   global   : global_context;
 }
 
+let rec method_lookup (ctx: global_context) (classid:TypeId.t) (mid:MethodId.t) : (TypeId.t * MethodTable.methsig) option = 
+	match MethodTable.get_meth ctx.methods (classid, mid) with 
+	| (Some sigt) as ret -> Some (classid, sigt)
+	| None -> if classid = TypeId.objt then None else
+			let parent_type = Option.value_exn (Conforms.parent ctx.g classid) in 
+			method_lookup ctx parent_type mid 
+
 let rec field_lookup (global: global_context) (starting:TypeId.t)  (name:ObjId.t) : TypeId.tvar option = 
   match TypeId.Map.find global.fields starting with 
   | None -> failwith "type map must have all types"
@@ -265,12 +272,13 @@ let join ctx tvar1 tvar2 : TypeId.tvar =
 
 let inttype = TypeId.Absolute(TypeId.intt);;
 let stringtype = TypeId.Absolute(TypeId.stringt);; 
-let booltype = TypeId.Absolute(TypeId.boolt);;
+let booltype = (TypeId.Absolute TypeId.boolt);;
+let objtype = TypeId.obj;;
 
 let rec typecheck_posexpr (context : expression_context) ({expr; _} as posex : posexpr) : posexpr = 
   let  (echecked, etype) = typecheck_expr context expr  in { posex with expr=echecked; exprtyp=Some etype }  
 and typecheck_expr (context : expression_context) (e:expr) : (expr * TypeId.tvar) =
-  let g = context.global.g in
+  let g = context.global.g in 
   match e with
   | Int _ -> e, inttype
   | Str _ -> e, stringtype
@@ -284,7 +292,7 @@ and typecheck_expr (context : expression_context) (e:expr) : (expr * TypeId.tvar
   | Intop (b, l, r) -> 
     let chl = (typecheck_posexpr context l) in 
     let chr =  (typecheck_posexpr context r) in 
-    (Intop (b, chl, chr), if Option.both chl.exprtyp chr.exprtyp = Some(inttype, inttype) then inttype else failwith "binop: both must be int")
+    (Intop (b, chl, chr), if (Option.both chl.exprtyp chr.exprtyp) = Some (inttype, inttype) then inttype else failwith "binop: both must be int")
 	| Intcomp  (b, l, r) ->
 		let chl = (typecheck_posexpr context l) in
 		let chr = (typecheck_posexpr context r) in 
@@ -299,6 +307,13 @@ and typecheck_expr (context : expression_context) (e:expr) : (expr * TypeId.tvar
 	 (IsVoid che, match che.exprtyp with 
 		| Some t -> booltype
 		| None -> failwith "unexpected")
+	| Assign (var, e) ->  let typeid  = (match name_lookup context (ObjId.Name var) with 
+		| None -> failwith "assign: name undefined"
+		| Some t -> t) in let checkede = expr_conforms_exn context e typeid in (Assign (var, checkede), Option.value_exn checkede.exprtyp)
+	| Dispatch ({obj; dispatchType; id; args} as drec) -> let (checked, ret) = typecheck_dispatch context drec in 
+		let rettype = (match ret with 
+			| TypeId.SelfType -> Option.value_exn obj.exprtyp
+			|(TypeId.Absolute _) as abs -> abs) in (Dispatch checked, rettype)
 	| Eq (l, r) -> 
 		let chl = (typecheck_posexpr context l) in
 		let chr = (typecheck_posexpr context r) in 
@@ -313,14 +328,39 @@ and typecheck_expr (context : expression_context) (e:expr) : (expr * TypeId.tvar
 		| Some t -> Block mapped, t
 		| None -> failwith "unexpected")
 	| If { pred; thenexp; elseexp } -> let checked = typecheck_if context pred thenexp elseexp in 
-		let both = Option.both checked.thenexp.exprtyp checked.elseexp.exprtyp in 
-		let newtyp = (match both with 
-		| None -> failwith "unexpected"
-		| Some (t1, t2) ->  join context t1 t2) in (If checked, newtyp)
+		let (t1, t2) = Option.value_exn (Option.both checked.thenexp.exprtyp checked.elseexp.exprtyp) in 
+		let newtyp = join context t1 t2 
+		in (If checked, newtyp)
+	| Loop {cond; body} -> let checked_cond = expr_conforms_exn context cond booltype in 
+		let checked_body = expr_conforms_exn context body objtype in (Loop {cond=checked_cond; body=checked_body},  objtype)
   | _ -> failwith (Printf.sprintf "expression not implemented: %s" (Sexp.to_string_hum (sexp_of_expr e)))
 and eq_ok tvar1 tvar2 : bool  = 
 	let isspecial = fun t -> (let special = [booltype; stringtype; inttype] in ((List.find special ~f:(fun x -> x = t)) <> None)) in
 	if (isspecial tvar1) || (isspecial tvar2) then tvar1 = tvar2 else true
+and typecheck_dispatch ctx ({obj; dispatchType; id; args} as drec) : (dispatchrec * TypeId.tvar) =  
+(* 
+   0. typecheck of obj expression.
+	 1. typecheck of all argument expressions
+   2. figure out the dispatchType to use (given or, self type or type of obj)
+   3. verify the type of the obj expression is compatible with the dispatchType
+   4. lookup the method signature given the dispatch type and name. verify it exists
+   5. for each of the param types, check expressions are compatible with param type.
+*)
+	let checked_obj = typecheck_posexpr ctx obj in
+	let objt = Option.value_exn checked_obj.exprtyp in
+	let checked_args = List.map args ~f:(fun a -> typecheck_posexpr ctx a) in  
+	let lookup_tid =  (match dispatchType with 
+	| None -> resolve_bound ctx objt (* it could be self_type *)
+	| Some t -> t) in
+	if not (type_compatible ctx.cls ctx.global.g objt (TypeId.Absolute lookup_tid)) then  
+		failwith "object type does not conform to dispatch type" else
+	let open MethodTable in 
+	let (actual_cls, {params; ret}) = (match method_lookup ctx.global lookup_tid id  with 
+		| None -> failwith "method id not found"
+		| Some signature -> signature) in 
+	let paired = List.zip_exn checked_args params in 
+	let _ = List.map paired ~f:(fun (posexp, t) -> expr_conforms_exn ctx posexp (TypeId.Absolute t)) in
+	({drec with obj=checked_obj; args=checked_args; (*dispatchType=Some (Absolute actual_cls)*)}, ret)
 and typecheck_let ctx {decls; letbody} : letrec = 
 	match decls with 
 	| [] -> {decls=[]; letbody=(typecheck_posexpr ctx letbody)}

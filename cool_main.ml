@@ -314,7 +314,7 @@ and typecheck_expr (context : expression_context) (e:expr) : (expr * TypeId.tvar
 		| Some t -> t) in let checkede = expr_conforms_exn context e typeid in (Assign (var, checkede), Option.value_exn checkede.exprtyp)
 	| Dispatch ({obj; dispatchType; id; args} as drec) -> let (checked, ret) = typecheck_dispatch context drec in 
 		let rettype = (match ret with 
-			| TypeId.SelfType -> Option.value_exn obj.exprtyp
+			| TypeId.SelfType -> Option.value_exn checked.obj.exprtyp
 			|(TypeId.Absolute _) as abs -> abs) in (Dispatch checked, rettype)
 	| Eq (l, r) -> 
 		let chl = (typecheck_posexpr context l) in
@@ -340,14 +340,6 @@ and eq_ok tvar1 tvar2 : bool  =
 	let isspecial = fun t -> (let special = [booltype; stringtype; inttype] in ((List.find special ~f:(fun x -> x = t)) <> None)) in
 	if (isspecial tvar1) || (isspecial tvar2) then tvar1 = tvar2 else true
 and typecheck_dispatch ctx ({obj; dispatchType; id; args} as drec) : (dispatchrec * TypeId.tvar) =  
-(* 
-   0. typecheck of obj expression.
-	 1. typecheck of all argument expressions
-   2. figure out the dispatchType to use (given or, self type or type of obj)
-   3. verify the type of the obj expression is compatible with the dispatchType
-   4. lookup the method signature given the dispatch type and name. verify it exists
-   5. for each of the param types, check expressions are compatible with param type.
-*)
 	let checked_obj = typecheck_posexpr ctx obj in
 	let objt = Option.value_exn checked_obj.exprtyp in
 	let checked_args = List.map args ~f:(fun a -> typecheck_posexpr ctx a) in  
@@ -394,12 +386,16 @@ let typecheck_method (classname : TypeId.t) ( global :  global_context ) (method
 
 let typecheck_field (classname : TypeId.t) (global : global_context) fieldr : fieldr option = 
   let {fieldtype; init; _} = fieldr in 
-  let ctx = {local=ObjTable.empty; cls=classname; global } in
+  let ctx = { local=ObjTable.empty; cls=classname; global } in
   match init with 
   | None -> Some(fieldr) (* no type problems if no init *)
   | Some initsome ->  let checked_init = expr_conforms_exn ctx initsome fieldtype 
 		in Some { fieldr with init=Some checked_init }
 
+(* methods must be checked with local field definitions available *)
+(* what about field definitions? are they defined with local method definitions available?. what about other fields?*)
+(* (how will codegen work here, in terms of what gets inited first? *)
+(* methods that override existing methods must take more general inputs, or return more specific outputs *)
 let typecheck_class (global : global_context) cool_class : cool_class option = 
   let {methods; fields; classname; _} = cool_class in
   let checkedm = Option.all (List.map ~f:(fun (m ,_) -> typecheck_method classname global m) methods) in
@@ -412,56 +408,51 @@ let typecheck_class (global : global_context) cool_class : cool_class option =
   | _ -> None
 
 (*
-the formal params is a list of formals with position
-but to print them we need them to be posnodes
+notes re. SelfType: 
 
+okay in:
+1) method return type 
+2) field declaration type 
+3) let declaration type  
+4) argument to new
 
-(* the nature of Self_Type: *)
-(* okay in: 1) method return type 2) field declaration type 3) let declaration type  4) argument to new *)
-(* What is the meaning of Self_Type in those cases above *)
-not okay in 1) class name, 2) inherits, 3) formal param for method 4) case 5) dispatch
+not okay in:
+1) class name
+2) inherits
+3) formal param for method 
+4) case expression
+5) dispatch expression
 
-main must have no arguments 
-the rules for self 
-okay in dispatch: foo() -> self.foo()
-The identifier self may be referenced, but it is an error to assign to self or to bind
-self in a let, a case, or as a formal parameter. It is also illegal to have attributes named self .
+Within every class C's scope, there is a name self with type SelfType(C).
 
-Notes on semantic checks:
+notes re. restrictions:
+1) main must have no arguments 
+2) self may be referenced. 
+3) (re. self) it is an error to:
+	a) assign to self 
+	b) bind self in a let, a case, or as a formal parameter. 
+	c) have attributes named self .
 
-context needed
-   O(v)
-   M(C, f) = (t0,...,tn, ret)
-   C to resolve self type. 
-   typegraph to determine conformance
+methods are globally visible.
 
-semantic rule list:
-0) self type: only on method return, let, and field decl.
-1) self : only as a reference. never as a  declaration. never in an assignment.
-1) method table is globally visible
-2) fields are only visible inside.
-3) attribute initialization order
-4) SELF_TYPE in checking.
+Field rules:
+1) fields are only visible inside their (transitive) classes.
+2) fields are visible in other field inits.
+3) fields are visible from methods.
 
- TypeIds: check they exist at:
-    -new 
-    -field declaration type
-    -method return type
-    -method param declaration type
-    -let expr
-    -case
-    (use s exp tree instead)
-   
-/Field names: ancestor field names accessible?  
-      A: in ref, yes. but, if name reused with a different type, then seems to complain
-      A: in manual: no explanation?
-      For now, we will do shadowing. so the innermost definition wins.
-      
- Method override  type checks.
- Add all builtin basic class info to global context
- //Check that all type ids in the program exist in the tables (?)
- //Deal with non-existing names (?) 
- //Done. fields type checking (inited properly? ordering?)
+check all typeId's exist
+
+Method override checks.
+ 
+Field names override: shadowing not allowed.
+
+Dispatch:
+   0. typecheck of obj expression.
+	 1. typecheck of all argument expressions
+   2. figure out the dispatchType to use (given or, self type or type of obj)
+   3. verify the type of the obj expression is compatible with the dispatchType
+   4. lookup the method signature given the dispatch type and name. verify it exists
+   5. for each of the param types, check expressions are compatible with param type.
 *)
 
 (* check all type ids used in the program are well defined elsewhere *)
@@ -497,7 +488,8 @@ let string_of_pos ps =
 	ps.fname ^ ":" ^ (string_of_int ps.lnum);;
 
 let parse_main () = 
-  let infile = Sys.argv.(1) in 
+  let infile = if (Array.length Sys.argv <=1) then failwith "Usage: filename <verbose=true/false>" else Sys.argv.(1) in
+	let verbose = if (Array.length Sys.argv) <= 2 then false else (bool_of_string Sys.argv.(2)) in  
   let inch = In_channel.create infile in
   let lexbuf = Lexing.from_channel inch in
   lexbuf.Lexing.lex_curr_p <- { lexbuf.lex_start_p with pos_fname = infile };
@@ -509,7 +501,8 @@ let parse_main () =
     else match prg  with
       | Some(p) ->   let (prgnopos, pos) = p in 
         (match (try typecheck_prog prgnopos with 
-				| Seman { msg;  expr; _} -> (Printf.printf "%s: %s.\nCompilation halted due to static semantic errors.\n%!" (string_of_pos expr.pos) msg); exit 1) with 
+				| Seman { msg;  expr; bt;} -> (Printf.printf "%s: %s.\nCompilation halted due to static semantic errors.\n%!" (string_of_pos expr.pos) msg); if verbose 
+				then Printf.printf "%s\n%!" bt else ();  exit 1) with 
          | None -> failwith "failed type check"
          | Some(completedp) -> lines_of_ps lines_of_prog (completedp, pos))
       | None -> (Cool_tools.syntax_error

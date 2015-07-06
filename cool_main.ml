@@ -273,8 +273,12 @@ let stringtype = TypeId.Absolute(TypeId.stringt);;
 let booltype = (TypeId.Absolute TypeId.boolt);;
 let objtype = TypeId.obj;;
 
+type semanrec = { msg:string; bt:string; expr:posexpr } with sexp;;
+exception Seman of semanrec with sexp;;
+
 let rec typecheck_posexpr (context : expression_context) ({expr; _} as posex : posexpr) : posexpr = 
-  let  (echecked, etype) = typecheck_expr context expr  in { posex with expr=echecked; exprtyp=Some etype }  
+  let  (echecked, etype) = (try typecheck_expr context expr with 
+	| Failure msg -> raise (Seman {msg=msg; bt=Exn.backtrace(); expr=posex}) )  in { posex with expr=echecked; exprtyp=Some etype }  
 and typecheck_expr (context : expression_context) (e:expr) : (expr * TypeId.tvar) =
   let g = context.global.g in 
   match e with
@@ -489,6 +493,9 @@ let tokenize_main () =
     In_channel.close inch
   done
 
+let string_of_pos ps = 
+	ps.fname ^ ":" ^ (string_of_int ps.lnum);;
+
 let parse_main () = 
   let infile = Sys.argv.(1) in 
   let inch = In_channel.create infile in
@@ -501,7 +508,8 @@ let parse_main () =
     then ["Compilation halted due to lex and parse errors"] 
     else match prg  with
       | Some(p) ->   let (prgnopos, pos) = p in 
-        (match typecheck_prog prgnopos with 
+        (match (try typecheck_prog prgnopos with 
+				| Seman { msg;  expr; _} -> (Printf.printf "%s: %s.\nCompilation halted due to static semantic errors.\n%!" (string_of_pos expr.pos) msg); exit 1) with 
          | None -> failwith "failed type check"
          | Some(completedp) -> lines_of_ps lines_of_prog (completedp, pos))
       | None -> (Cool_tools.syntax_error

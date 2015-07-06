@@ -4,7 +4,7 @@ type lexpos = {
 		fname : string;
    	lnum : int;
    	cnum : int;
-		} with sexp (* defining our own position type so that it has sexp representation *)
+		} with sexp;; (* defining our own position type so that it has sexp representation *)
 
 let convert ({pos_fname; pos_lnum; pos_cnum; pos_bol} : Lexing.position) : lexpos =
 			{ fname=pos_fname; lnum = pos_lnum; cnum = pos_cnum  - pos_bol;}
@@ -65,8 +65,8 @@ module MethodId = struct
 
 type formal = ObjId.t * TypeId.t with sexp
 
-type binop = Plus | Minus | Mult | Div with sexp
-type bincomp = Lequal | Lt | Eq with sexp
+type binop = Plus | Minus | Mult | Div with sexp;;
+type bincomp = Lequal | Lt  with sexp;;
 
 type expr =
   | Let of letrec
@@ -126,8 +126,8 @@ type cool_class = {
 	fields : posfield list 
 } with sexp
 		
-type posclass = cool_class * lexpos with sexp
-type prog = posclass list with sexp
-type posprog = prog * lexpos with sexp
+type posclass = cool_class * lexpos with sexp;;
+type prog = posclass list with sexp;;
+type posprog = prog * lexpos with sexp;;
  
-exception ParseError of lexpos
+exception ParseError of lexpos with sexp;;

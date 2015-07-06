@@ -237,8 +237,6 @@ let rec field_lookup (global: global_context) (starting:TypeId.t)  (name:ObjId.t
           | None -> None (* reached end of parent chain, defined nowhere *) 
         ))
 
-exception SemanticError of Cool.posexpr with sexp;;
-
 let name_lookup (context:expression_context) (name:ObjId.id) : TypeId.tvar option  = 
   match name with 
   | ObjId.Name n -> 
@@ -251,7 +249,7 @@ let name_lookup (context:expression_context) (name:ObjId.id) : TypeId.tvar optio
 let tvar_ok (gr : Conforms.typegraph) (tv : TypeId.tvar) : bool = 
   let open TypeId in match tv with 
   | SelfType -> true
-  | Absolute t -> Conforms.defined gr t
+  | Absolute t -> Conforms.defined gr t;;
 
 let type_compatible (cls: TypeId.t) (g: Conforms.typegraph) (actual : TypeId.tvar) (expected : TypeId.tvar) : bool =
   let open TypeId in match (actual, expected) with 
@@ -259,12 +257,12 @@ let type_compatible (cls: TypeId.t) (g: Conforms.typegraph) (actual : TypeId.tva
   | SelfType, Absolute expectedt  -> Conforms.conforms g cls expectedt
   (* if SELF_TYPE_classname <: expected, then for all C <: classname, it is also true *)        
   | Absolute _, SelfType -> false (* would need actualt <: SELF_TYPE_C for all C <: classname  *)
-  | Absolute actualt, Absolute expectedt -> Conforms.conforms g actualt expectedt 
+  | Absolute actualt, Absolute expectedt -> Conforms.conforms g actualt expectedt ;;
 
 let resolve_bound ctx tvar : TypeId.t = 
 	let open TypeId in match tvar with 
 		|	Absolute t -> t
-		| SelfType -> ctx.cls
+		| SelfType -> ctx.cls;;
 
 let join ctx tvar1 tvar2 : TypeId.tvar =
 	let (t1, t2) = (resolve_bound ctx tvar1, resolve_bound ctx tvar2) in

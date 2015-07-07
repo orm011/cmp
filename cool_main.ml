@@ -296,12 +296,12 @@ let stringtype = TypeId.Absolute TypeId.Builtin.string;;
 let booltype = TypeId.Absolute TypeId.Builtin.bool;;
 let objtype = TypeId.Absolute TypeId.Builtin.obj;;
 
-type semanrec = { msg:string; bt:string; expr:posexpr } with sexp;;
+type semanrec = { msg:string; bt:string; loc:Cool.lexpos } with sexp;;
 exception Seman of semanrec with sexp;;
 
 let rec typecheck_posexpr (context : expression_context) ({expr; _} as posex : posexpr) : posexpr = 
   let  (echecked, etype) = (try typecheck_expr context expr with 
-	| Failure msg -> raise (Seman {msg=msg; bt=Exn.backtrace(); expr=posex}) )  in { posex with expr=echecked; exprtyp=Some etype }  
+	| Failure msg -> raise (Seman {msg=msg; bt=Exn.backtrace(); loc=posex.pos}) )  in { posex with expr=echecked; exprtyp=Some etype }  
 and typecheck_expr (context : expression_context) (e:expr) : (expr * TypeId.tvar) =
   let g = context.global.g in 
   match e with
@@ -511,10 +511,11 @@ let check_inheritance_rules (g: global_context) : unit =
 
 (* runs all semantic checks on prog *)
 (*let _ = Printf.printf "%s\n%!" (Sexp.to_string_hum (Conforms.sexp_of_typegraph global.g)) in *)
-let typecheck_prog prog : prog option = 
+let typecheck_prog (prog, pos) : prog option = 
   let global = get_global_context prog in
   let _ = check_abs_types global.g prog in
-	let _ = check_inheritance_rules global in 
+	let _ = (try check_inheritance_rules global with 
+	| Failure msg -> let bt = Exn.backtrace() in raise (Seman {msg; bt; loc=pos;})) in 
   let checked = List.map ~f:(fun (cls,_) -> typecheck_class global cls) prog in
   match Option.all checked with 
   | None -> None
@@ -546,9 +547,10 @@ let parse_main () =
     then ["Compilation halted due to lex and parse errors"] 
     else match prg  with
       | Some(p) ->   let (prgnopos, pos) = p in 
-        (match (try typecheck_prog prgnopos with 
-				| Seman { msg;  expr; bt;} -> (Printf.printf "%s: %s.\nCompilation halted due to static semantic errors.\n%!" (string_of_pos expr.pos) msg); if verbose 
-				then Printf.printf "%s\n%!" bt else ();  exit 1) with 
+        (match (try typecheck_prog p with 
+				| Seman { msg; loc; bt;} -> (Printf.printf "%s: %s.\nCompilation halted due to static semantic errors.\n%!" (string_of_pos loc) msg); if verbose 
+				then Printf.printf "%s\n%!" bt else ();  exit 1
+				) with 
          | None -> failwith "failed type check"
          | Some(completedp) -> lines_of_ps lines_of_prog (completedp, pos))
       | None -> (Cool_tools.syntax_error

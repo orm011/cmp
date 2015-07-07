@@ -4,6 +4,61 @@ open Cool_tools;;
 open Cool_lexer;;
 open Coolout;;
 
+
+module type ObjTableT = sig
+  type t
+  val add_obj: t -> ObjId.t * TypeId.tvar -> t (* id must be real but type  may be self type *)
+  val get_obj: t -> ObjId.t -> TypeId.tvar option
+  val empty: t
+	val to_alist: t -> (ObjId.t *TypeId.tvar) list
+	val of_alist: (ObjId.t *TypeId.tvar) list -> t
+end
+
+module ObjTable : ObjTableT = struct 
+  type t = TypeId.tvar ObjId.Map.t
+  let add_obj t (id, typ) = 
+    ObjId.Map.add t ~key:id ~data:typ
+  let get_obj t id = 
+    ObjId.Map.find t id
+  let empty = ObjId.Map.empty
+	let to_alist m  = ObjId.Map.to_alist m
+	let of_alist l = ObjId.Map.of_alist_exn l
+end
+
+module type MethodTableT = sig
+  type t
+  val empty: t
+  val add_meth: t -> methodr -> t
+	val add_sig: t  ->  MethodId.t -> MethodId.methsig -> t
+  val get_meth: t -> MethodId.t -> MethodId.methsig option
+	val to_alist: t -> (MethodId.t * MethodId.methsig) list
+	val of_alist: (MethodId.t * MethodId.methsig) list -> t
+end
+
+module MethodTable : MethodTableT = struct
+	open MethodId;;
+
+  type t = methsig MethodId.Map.t
+
+  let methsig_of_formal {formalparams; returnType; _} = 
+    let nf = List.map formalparams ~f:(fun ((_, typ), _) -> typ)
+    in  { params=nf; ret=returnType }
+
+  let empty =  MethodId.Map.empty (*TypeId.objt {methodname="abort"; }*)
+
+  let add_meth m ({ methodname; _ } as mrec) = 
+    MethodId.Map.add m ~key:methodname ~data:(methsig_of_formal mrec)
+
+	let add_sig m methodname methsig =  MethodId.Map.add m ~key:methodname ~data:methsig
+
+	let get_meth m n = MethodId.Map.find m n 
+	
+	let to_alist m  = Map.to_alist m
+	let of_alist m = Map.of_alist_exn m
+end
+
+
+
 (*
 Well formed type definition:
   -tree structure rooted at object.
@@ -26,11 +81,13 @@ module type ConformsType = sig
   val superU: typegraph ->  TypeId.t -> TypeId.t ->  TypeId.t
 
   val parent: typegraph -> TypeId.t -> TypeId.t option
+	val children_exn: typegraph -> TypeId.t -> TypeId.t list
+	val sexp_of_typegraph : typegraph -> Sexp.t
 end
 
 module Conforms : ConformsType = struct
   type partial_typegraph = TypeId.t TypeId.Map.t
-  type typegraph = TypeId.t TypeId.Map.t
+  type typegraph = {parent:TypeId.t TypeId.Map.t; children:(TypeId.t list) TypeId.Map.t}
 
   (* only used here because we know the *)
   (* literal input strings we are using *)
@@ -38,13 +95,14 @@ module Conforms : ConformsType = struct
     | TypeId.SelfType -> failwith "unexpected selftype"
     | TypeId.Absolute (t) -> t
 
-  let objT = t_of_string "Object"
-  let ioT =  t_of_string "IO"
+  let objT = TypeId.Builtin.obj
+  let ioT =  TypeId.Builtin.io
 
   (* cannot inherit from these below *)
-  let strT = t_of_string "String"
-  let intT = t_of_string "Int"
-  let boolT = t_of_string "Bool"
+  let strT = TypeId.Builtin.string
+  let intT = TypeId.Builtin.int
+  let boolT = TypeId.Builtin.bool
+	
 
   let initial () = TypeId.Map.of_alist_exn [ (strT, objT); (intT, objT); 
                                              (ioT, objT); (boolT, objT) ]
@@ -75,13 +133,23 @@ module Conforms : ConformsType = struct
       | None -> false
       | Some(p) -> rooted gr p
 
+ 	(* checks the class graph is well formed:*)
+	(* 1. every class has a defined parent, except object. *)
   let finish (gr : partial_typegraph) : (typegraph, string) Result.t  = 
     if (List.for_all (TypeId.Map.keys gr) ~f:(fun x -> rooted gr x))
-    then Ok gr else Error "some class is not well grounded"
+		then let merge_fun ~(key:TypeId.t) ~(data:TypeId.t) (mp:TypeId.t list TypeId.Map.t)  =
+			let oldentry = Option.value ~default:[] (Map.find mp data) in
+			let newentry = key :: oldentry in 
+			let rev = Map.add mp ~key:data ~data:newentry in 
+			match Map.find rev key with 
+			| None -> Map.add rev ~key:key ~data:[] (* add empty list for leaves *)
+			| Some t -> rev
+		in  let children = Map.fold gr ~init:TypeId.Map.empty ~f:merge_fun in 
+    Ok {parent=gr; children} else Error "some class is not well grounded"
 
   let rec conforms (gr : typegraph) n1 n2  = 
     if n1 = n2 then true else
-      match Map.find gr n1 with
+      match Map.find gr.parent n1 with
       | None -> false
       | Some (n1) -> conforms gr n1 n2;;
 
@@ -104,17 +172,22 @@ module Conforms : ConformsType = struct
 
   (* what happens if the input type was never added to the graph? *)
   let superU (gr: typegraph) (t1:  TypeId.t) (t2: TypeId.t) : TypeId.t = 
-    let p1 = get_path gr t1 in
-    let p2 = get_path gr t2 in
+    let p1 = get_path gr.parent t1 in
+    let p2 = get_path gr.parent t2 in
     let rev = revlcprefix p1 p2
     in match rev with 
     | [] -> failwith "all prefixes have an obj, illegal input?"
     | h ::  _ -> h
 
-  let defined = rooted 
+  let defined gr t = rooted gr.parent t 
   (* every defined type in a complete typegraph is rooted, so they are equivalent. deals with base case already *)
 
-  let parent (gr :typegraph) (t:TypeId.t) =  Map.find gr t
+  let parent (gr :typegraph) (t:TypeId.t) =  Map.find gr.parent t
+	
+	let children_exn (gr :typegraph) (t:TypeId.t) = Map.find_exn gr.children t
+	
+	let sexp_of_typegraph (gr:typegraph ):  Sexp.t  = TypeId.Map.sexp_of_t (List.sexp_of_t TypeId.sexp_of_t)  gr.children
+
 end
 
 let get_class_graph (prog : prog) 
@@ -132,87 +205,33 @@ let get_class_graph (prog : prog)
       | Error(s) -> failwith s) in 
   Conforms.finish almost
 
-
-module type ObjTableT = sig
-  type t
-  val add_obj: t -> ObjId.t * TypeId.tvar -> t (* id must be real but type  may be self type *)
-  val get_obj: t -> ObjId.t -> TypeId.tvar option
-  val empty: t
-end
-
-module ObjTable : ObjTableT = struct 
-  type t = TypeId.tvar ObjId.Map.t
-  let add_obj t (id, typ) = 
-    ObjId.Map.add t ~key:id ~data:typ
-  let get_obj t id = 
-    ObjId.Map.find t id
-  let empty = ObjId.Map.empty
-end
-
-module type MethodTableT = sig
-  type t
-  type methsig = { params: TypeId.t list; ret: TypeId.tvar }
-
-  val empty: t
-  val add_meth: t -> TypeId.t -> methodr -> t
-  val get_meth: t -> TypeId.t * MethodId.t -> methsig option
-end
-
-module MethodTable : MethodTableT = struct
-  module FullId = 
-    Comparable.Make
-      (
-      struct 
-        type t = TypeId.t * MethodId.t with sexp, compare
-      end
-      )
-
-  type methsig = { params: TypeId.t list; ret: TypeId.tvar }
-
-  type t = methsig FullId.Map.t
-
-  let methsig_of_formal {formalparams; returnType; _} = 
-    let nf = List.map formalparams ~f:(fun ((_, typ), _) -> typ)
-    in  { params=nf; ret=returnType }
-
-  let empty = FullId.Map.empty
-
-  let add_meth m t ({ methodname; _ } as mrec) = 
-    FullId.Map.add m ~key:(t, methodname) ~data:(methsig_of_formal mrec)
-
-  let get_meth m pr = FullId.Map.find m pr 
-end
-
-let get_method_table (prog:prog) : MethodTable.t = 
-  let absorb_class (t : MethodTable.t) (({classname; methods; _}, _) : posclass) : MethodTable.t = 
-    List.fold_left ~init:t ~f:(fun t -> fun (m,_) -> (MethodTable.add_meth t classname m)) methods  
-  in List.fold_left ~init:MethodTable.empty ~f:absorb_class prog
-
-(* gets the table mapping all class fields to their types *)
-(* this table has all the symbols defined locally in the class *) 
-let get_class_object_table ({fields; _}: cool_class) : ObjTable.t = 
+let get_class_tables ({fields; methods; _}: cool_class) : (ObjTable.t* MethodTable.t) = 
   let pairs = List.map fields ~f:(fun ({fieldname; fieldtype; _}, _) -> (fieldname, fieldtype)) in
-  List.fold pairs ~init:ObjTable.empty ~f:ObjTable.add_obj  
-
-let get_fields_table (prog:prog) : ObjTable.t TypeId.Map.t =
-  let absorb_class (t : ObjTable.t TypeId.Map.t) (({classname;  _} as cls, _)  : posclass) =
-    TypeId.Map.add t ~key:classname ~data:(get_class_object_table cls)
-  in List.fold_left ~init:TypeId.Map.empty ~f:absorb_class prog
+  let objt = List.fold pairs ~init:ObjTable.empty ~f:ObjTable.add_obj in 
+	let methodt = List.fold methods ~init:MethodTable.empty ~f:(fun mt (m, _) -> MethodTable.add_meth mt m) in (objt, methodt)
+	
+let get_tables (prog:prog) (init:(ObjTable.t TypeId.Map.t * MethodTable.t TypeId.Map.t)): (ObjTable.t TypeId.Map.t * MethodTable.t TypeId.Map.t) =
+  let absorb_class ((f,m) : (ObjTable.t TypeId.Map.t * MethodTable.t TypeId.Map.t))  (({classname;  _} as cls, _) : posclass) =
+		let (fd, md) = get_class_tables cls in 
+    let newf = TypeId.Map.add f ~key:classname ~data:fd in 
+		let newd = TypeId.Map.add m ~key:classname ~data:md in (newf, newd)
+  in List.fold_left ~init ~f:absorb_class prog
 
 type global_context = {
   (* global context. does not change *)
   (* invariants: g and fields and methods tables all have data for the same types *)
   fields   : ObjTable.t TypeId.Map.t; 
-  methods   : MethodTable.t; 
+  methods  : MethodTable.t TypeId.Map.t; 
   g      : Conforms.typegraph 
 }
 
-let get_global_context (prog:prog) : global_context = {
-  fields=get_fields_table prog; 
-  methods=get_method_table prog; 
-  g=(match get_class_graph prog with 
-      | Ok(g) -> g 
-      | _ -> failwith "graph not done") } 
+let get_global_context (prog:prog) : global_context =   
+	let g = (match get_class_graph prog with 
+      	| Ok(g) -> g 
+      	| _ -> failwith "graph not done") in
+	let builtin_fields = List.fold Cool.builtin_fields ~init:TypeId.Map.empty ~f:(fun map (typ, lst) -> TypeId.Map.add map ~key:typ ~data:(ObjTable.of_alist lst)) in
+	let builtin_methods = List.fold Cool.builtin_methods ~init:TypeId.Map.empty ~f:(fun map (typ, lst) -> TypeId.Map.add map ~key:typ ~data:(MethodTable.of_alist lst))in
+	let (fields, methods) = get_tables prog (builtin_fields,builtin_methods) in  {fields; methods; g} 
 
 type expression_context = {
   local    : ObjTable.t; 
@@ -220,16 +239,20 @@ type expression_context = {
   global   : global_context;
 }
 
-let rec method_lookup (ctx: global_context) (classid:TypeId.t) (mid:MethodId.t) : (TypeId.t * MethodTable.methsig) option = 
-	match MethodTable.get_meth ctx.methods (classid, mid) with 
-	| (Some sigt) as ret -> Some (classid, sigt)
-	| None -> if classid = TypeId.objt then None else
+let rec method_lookup (ctx: global_context) (classid:TypeId.t) (mid:MethodId.t) : (TypeId.t * MethodId.methsig) option = 
+	let open MethodId in
+	let open TypeId in 
+	match TypeId.Map.find ctx.methods classid with 
+	| None -> failwith "undefined type"
+	| Some tab -> match MethodTable.get_meth tab mid with 
+		| (Some sigt) as ret -> Some (classid, sigt)
+		| None -> if classid = Builtin.obj then None else
 			let parent_type = Option.value_exn (Conforms.parent ctx.g classid) in 
 			method_lookup ctx parent_type mid 
 
 let rec field_lookup (global: global_context) (starting:TypeId.t)  (name:ObjId.t) : TypeId.tvar option = 
   match TypeId.Map.find global.fields starting with 
-  | None -> failwith "type map must have all types"
+  | None -> failwith "undefined type"
   | Some(tab) -> (match ObjTable.get_obj tab name with 
       | Some(x) -> Some(x) (* found it ! *) 
       | None -> (match Conforms.parent global.g starting with
@@ -268,10 +291,10 @@ let join ctx tvar1 tvar2 : TypeId.tvar =
 	let (t1, t2) = (resolve_bound ctx tvar1, resolve_bound ctx tvar2) in
 	Absolute (Conforms.superU ctx.global.g t1 t2);;
 
-let inttype = TypeId.Absolute(TypeId.intt);;
-let stringtype = TypeId.Absolute(TypeId.stringt);; 
-let booltype = (TypeId.Absolute TypeId.boolt);;
-let objtype = TypeId.obj;;
+let inttype = TypeId.Absolute TypeId.Builtin.int;;
+let stringtype = TypeId.Absolute TypeId.Builtin.string;; 
+let booltype = TypeId.Absolute TypeId.Builtin.bool;;
+let objtype = TypeId.Absolute TypeId.Builtin.obj;;
 
 type semanrec = { msg:string; bt:string; expr:posexpr } with sexp;;
 exception Seman of semanrec with sexp;;
@@ -340,6 +363,7 @@ and eq_ok tvar1 tvar2 : bool  =
 	let isspecial = fun t -> (let special = [booltype; stringtype; inttype] in ((List.find special ~f:(fun x -> x = t)) <> None)) in
 	if (isspecial tvar1) || (isspecial tvar2) then tvar1 = tvar2 else true
 and typecheck_dispatch ctx ({obj; dispatchType; id; args} as drec) : (dispatchrec * TypeId.tvar) =  
+	let open MethodId in 
 	let checked_obj = typecheck_posexpr ctx obj in
 	let objt = Option.value_exn checked_obj.exprtyp in
 	let checked_args = List.map args ~f:(fun a -> typecheck_posexpr ctx a) in  
@@ -433,18 +457,18 @@ notes re. restrictions:
 	b) bind self in a let, a case, or as a formal parameter. 
 	c) have attributes named self .
 
-methods are globally visible.
-
 Field rules:
 1) fields are only visible inside their (transitive) classes.
 2) fields are visible in other field inits.
 3) fields are visible from methods.
 
-check all typeId's exist
+Check there is a class for all typeId used . done.
+Field names override. done
+shadowing not allowed. done.
 
-Method override checks.
- 
-Field names override: shadowing not allowed.
+No redefinition of fields. 
+No redefinition of methods. 
+No redefinition of self (in fields or let or args)
 
 Dispatch:
    0. typecheck of obj expression.
@@ -465,10 +489,32 @@ let check_abs_types typegraph prog : bool =
     | List l -> List.fold_left ~init:true ~f:(&&) (List.map ~f:check_abs_types_helper l))
   in check_abs_types_helper (Cool.sexp_of_prog prog)
 
+let check_method_conforms (g : global_context ) methsig1 methsig2 = methsig1 = methsig2 (* later on can loosen up *)
+
+(* assumes every class except object is rooted on object.*)
+(* checks all method overrides are safe. *)
+(* checks there are no field redefinitions. *)
+let check_inheritance_rules (g: global_context) : unit = 
+	let rec helper (g:global_context) (occ:ObjTable.t) (mcc:MethodTable.t) (current:TypeId.t) : unit = 
+		let methods = TypeId.Map.find_exn g.methods current in 
+		let fields = TypeId.Map.find_exn g.fields current in
+		let folding_methods mcc (id, methsig) = let _ = (match MethodTable.get_meth mcc id with | None -> () 
+		| Some s -> if check_method_conforms g methsig s then () else failwith "method override has incompatible signature") 
+			in MethodTable.add_sig mcc id methsig in
+		let folding_fields  occ (id, typ) = let _ = (match ObjTable.get_obj occ id with None -> () 
+		| Some t -> failwith "field redefined") 
+			in ObjTable.add_obj occ (id, typ) in
+		let newmcc = List.fold (MethodTable.to_alist methods) ~init:mcc ~f:folding_methods in
+		let newocc = List.fold (ObjTable.to_alist fields) ~init:occ ~f:folding_fields in
+		ignore(List.map (Conforms.children_exn g.g current) ~f:(fun x -> helper g newocc newmcc x)) in
+		helper g ObjTable.empty MethodTable.empty TypeId.Builtin.obj
+
 (* runs all semantic checks on prog *)
+(*let _ = Printf.printf "%s\n%!" (Sexp.to_string_hum (Conforms.sexp_of_typegraph global.g)) in *)
 let typecheck_prog prog : prog option = 
   let global = get_global_context prog in
   let _ = check_abs_types global.g prog in
+	let _ = check_inheritance_rules global in 
   let checked = List.map ~f:(fun (cls,_) -> typecheck_class global cls) prog in
   match Option.all checked with 
   | None -> None

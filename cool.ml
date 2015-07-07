@@ -25,12 +25,29 @@ module TypeId = struct
     | SelfType -> failwith "selftype"
     | Absolute(t) -> t
 
+	module Builtin = struct
+		let obj = Tid "Object"
+		let int = Tid "Int"
+		let string = Tid "String"
+		let io = Tid "IO"
+		let bool = Tid "Bool"
+	end
+	
+	module Abs = struct
+		let int = Absolute Builtin.int
+		let string = Absolute Builtin.string 
+		let bool = Absolute Builtin.bool
+		let obj = Absolute Builtin.obj
+		let io = Absolute Builtin.io
+	end
+	
   let string_of_t (Tid t) = t 
   let obj = tvar_of_string("Object")
   let objt = Tid "Object"
   let intt = Tid "Int"
   let stringt = Tid "String"
   let boolt  = Tid "Bool"
+	let iot = Tid "IO"	
   include Comparable.Make(T)
 end
 	
@@ -51,19 +68,52 @@ module ObjId = struct
 		let string_of_t t = t
 end
 
+type formal = ObjId.t * TypeId.t with sexp;;
+
+
 module MethodId = struct
     module T = struct 
-	type t = string with sexp, compare
-      end
-    include T
-    include Comparable.Make(T)
+			type t = string with sexp, compare
+    end
+		include T
+		include Comparable.Make(T)
+		
     let t_of_objid = function 
       | ObjId.Name(t) -> t
       | _ -> failwith "method should not have name self or dummy"
     let string_of_t t = t 
-  end
+		
+	 type methsig = { params:TypeId.t list; ret:TypeId.tvar } with sexp
+end
 
-type formal = ObjId.t * TypeId.t with sexp
+let builtin_methods = let open TypeId in let open MethodId in [
+	(Builtin.obj, 
+			[	("abort", 		{params=[]; ret=Abs.obj});
+				("type_name", {params=[]; ret=Abs.string});
+				("copy", 			{params=[]; ret=SelfType });
+				]);
+	(Builtin.io, 
+			[ ("out_string", 	{params=[Builtin.string]; ret=SelfType});
+				("out_int", 		{params=[Builtin.int]; ret=SelfType}); 
+				("in_string", 	{params=[]; ret=Abs.string});
+				("in_int", 			{params=[]; ret=Abs.int});
+				]);
+	(Builtin.string, 
+			[	("length", 			{params=[]; ret=Abs.int});
+				("concat", 			{params=[Builtin.string]; ret=Abs.string});
+				("substr",			{params=[Builtin.int; Builtin.int]; ret=Abs.string}) ;
+				]);
+	(Builtin.bool, []);
+	(Builtin.int, []);
+	] 
+
+let builtin_fields = let open TypeId in [
+	(Builtin.obj, []);
+	(Builtin.io, []);
+	(Builtin.string, []);
+	(Builtin.bool, []);
+	(Builtin.int, []);
+	]
 
 type binop = Plus | Minus | Mult | Div with sexp;;
 type bincomp = Lequal | Lt  with sexp;;
